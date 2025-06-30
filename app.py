@@ -1150,88 +1150,93 @@ def confirmar_devolucion(orden_id):
 @login_required
 @admin_required
 def api_reporte_rendimiento_operarios():
-    # Reutilizamos la misma lógica de filtro de fechas que en la página de reportes
-    periodo = request.args.get('periodo', 'semana')
-    hoy = datetime.datetime.utcnow().date()
-    fecha_inicio = None
-    if periodo == 'hoy':
-        fecha_inicio = datetime.datetime.combine(hoy, datetime.time.min)
-    elif periodo == 'mes':
-        fecha_inicio = datetime.datetime(hoy.year, hoy.month, 1)
-    else: # 'semana'
-        fecha_inicio = datetime.datetime.combine(hoy - timedelta(days=6), datetime.time.min)
+    try:
+        # --- Lógica de Filtro de Fechas ---
+        periodo = request.args.get('periodo', 'semana')
+        hoy = datetime.datetime.utcnow().date()
+        fecha_inicio = None
+        if periodo == 'hoy':
+            fecha_inicio = datetime.datetime.combine(hoy, datetime.time.min)
+        elif periodo == 'mes':
+            fecha_inicio = datetime.datetime(hoy.year, hoy.month, 1)
+        else: # 'semana'
+            fecha_inicio = datetime.datetime.combine(hoy - timedelta(days=6), datetime.time.min)
 
-    # Reutilizamos la misma consulta compleja que ya probamos
-    # (El código de las subconsultas kpis_picking, kpis_items, kpis_packing es el mismo)
-    # --- Subconsulta 1: KPIs de PICKING ---
-    kpis_picking = db.session.query(
-        LotePicking.operario_id,
-        func.count(LotePicking.id).label('lotes_completados'),
-        func.avg(
-            func.strftime('%s', Orden.fecha_fin_picking) - func.strftime('%s', Orden.fecha_inicio_picking)
-        ).label('tiempo_prom_picking')
-    ).join(LotePicking.ordenes).filter(
-        LotePicking.estado == 'COMPLETADO',
-        LotePicking.operario_id.isnot(None),
-        Orden.fecha_fin_picking.isnot(None),
-        Orden.fecha_inicio_picking.isnot(None),
-        Orden.fecha_fin_picking >= fecha_inicio
-    ).group_by(LotePicking.operario_id).subquery()
+        # --- Lógica de compatibilidad de Base de Datos ---
+        dialect_name = db.engine.dialect.name
+        if dialect_name == 'postgresql':
+            func_diff_seconds_picking = func.extract('epoch', Orden.fecha_fin_picking) - func.extract('epoch', Orden.fecha_inicio_picking)
+            func_diff_seconds_packing = func.extract('epoch', Orden.fecha_fin_packing) - func.extract('epoch', Orden.fecha_fin_picking)
+        else: # SQLite
+            func_diff_seconds_picking = func.strftime('%s', Orden.fecha_fin_picking) - func.strftime('%s', Orden.fecha_inicio_picking)
+            func_diff_seconds_packing = func.strftime('%s', Orden.fecha_fin_packing) - func.strftime('%s', Orden.fecha_fin_picking)
 
-    # --- Subconsulta 2: KPIs de ITEMS ---
-    kpis_items = db.session.query(
-        LotePicking.operario_id,
-        func.sum(ItemOrden.cantidad_recogida).label('items_recogidos'),
-        func.count(Orden.id).label('ordenes_procesadas_picking')
-    ).join(LotePicking.ordenes).join(Orden.items).filter(
-        LotePicking.estado == 'COMPLETADO',
-        LotePicking.operario_id.isnot(None),
-        Orden.fecha_fin_picking >= fecha_inicio
-    ).group_by(LotePicking.operario_id).subquery()
+        # --- Subconsultas (idénticas a la otra ruta, pero autocontenidas) ---
+        kpis_picking = db.session.query(
+            LotePicking.operario_id,
+            func.count(LotePicking.id).label('lotes_completados'),
+            func.avg(func_diff_seconds_picking).label('tiempo_prom_picking')
+        ).join(LotePicking.ordenes).filter(
+            LotePicking.estado == 'COMPLETADO',
+            LotePicking.operario_id.isnot(None),
+            Orden.fecha_fin_picking.isnot(None),
+            Orden.fecha_inicio_picking.isnot(None),
+            Orden.fecha_fin_picking >= fecha_inicio
+        ).group_by(LotePicking.operario_id).subquery()
 
-    # --- Subconsulta 3: KPIs de PACKING ---
-    kpis_packing = db.session.query(
-        Orden.packer_id,
-        func.count(Orden.id).label('ordenes_empacadas'),
-        func.avg(
-            func.strftime('%s', Orden.fecha_fin_packing) - func.strftime('%s', Orden.fecha_fin_picking)
-        ).label('tiempo_prom_packing')
-    ).filter(
-        Orden.packer_id.isnot(None),
-        Orden.fecha_fin_packing.isnot(None),
-        Orden.fecha_fin_picking.isnot(None),
-        Orden.fecha_fin_packing >= fecha_inicio
-    ).group_by(Orden.packer_id).subquery()
+        kpis_items = db.session.query(
+            LotePicking.operario_id,
+            func.sum(ItemOrden.cantidad_recogida).label('items_recogidos')
+        ).join(LotePicking.ordenes).join(Orden.items).filter(
+            LotePicking.estado == 'COMPLETADO',
+            LotePicking.operario_id.isnot(None),
+            Orden.fecha_fin_picking >= fecha_inicio
+        ).group_by(LotePicking.operario_id).subquery()
 
-    reporte_data = db.session.query(
-        User,
-        kpis_picking.c.lotes_completados,
-        kpis_picking.c.tiempo_prom_picking,
-        kpis_items.c.items_recogidos,
-        kpis_packing.c.ordenes_empacadas,
-        kpis_packing.c.tiempo_prom_packing
-    ).outerjoin(
-        kpis_picking, User.id == kpis_picking.c.operario_id
-    ).outerjoin(
-        kpis_items, User.id == kpis_items.c.operario_id
-    ).outerjoin(
-        kpis_packing, User.id == kpis_packing.c.packer_id
-    ).filter(User.role == 'operario').all()
-    
-    # --- PROCESAR DATOS PARA JSON ---
-    # Convertimos los resultados de la BD en una lista de diccionarios fácil de usar
-    json_data = []
-    for user, lotes, tiempo_pick, items, ordenes_pack, tiempo_pack in reporte_data:
-        json_data.append({
-            "username": user.username,
-            "lotes_completados": lotes or 0,
-            "items_recogidos": items or 0,
-            "ordenes_empacadas": ordenes_pack or 0,
-            "tiempo_prom_picking": tiempo_pick or 0,
-            "tiempo_prom_packing": tiempo_pack or 0
-        })
+        kpis_packing = db.session.query(
+            Orden.packer_id,
+            func.count(Orden.id).label('ordenes_empacadas'),
+            func.avg(func_diff_seconds_packing).label('tiempo_prom_packing')
+        ).filter(
+            Orden.packer_id.isnot(None),
+            Orden.fecha_fin_packing.isnot(None),
+            Orden.fecha_fin_picking.isnot(None),
+            Orden.fecha_fin_packing >= fecha_inicio
+        ).group_by(Orden.packer_id).subquery()
+        
+        # --- Consulta Principal ---
+        reporte_data = db.session.query(
+            User,
+            kpis_picking.c.lotes_completados,
+            kpis_picking.c.tiempo_prom_picking,
+            kpis_items.c.items_recogidos,
+            kpis_packing.c.ordenes_empacadas,
+            kpis_packing.c.tiempo_prom_packing
+        ).outerjoin(
+            kpis_picking, User.id == kpis_picking.c.operario_id
+        ).outerjoin(
+            kpis_items, User.id == kpis_items.c.operario_id
+        ).outerjoin(
+            kpis_packing, User.id == kpis_packing.c.packer_id
+        ).filter(User.role == 'operario').order_by(User.username).all()
+        
+        # --- Procesar Datos para JSON ---
+        json_data = []
+        for user, lotes, tiempo_pick, items, ordenes_pack, tiempo_pack in reporte_data:
+            json_data.append({
+                "username": user.username,
+                "lotes_completados": lotes or 0,
+                "items_recogidos": items or 0,
+                "ordenes_empacadas": ordenes_pack or 0,
+                "tiempo_prom_picking": tiempo_pick or 0,
+                "tiempo_prom_packing": tiempo_pack or 0
+            })
 
-    return jsonify(json_data)
+        return jsonify(json_data)
+
+    except Exception as e:
+        print(f"Error en la API de reportes: {e}")
+        return jsonify({"error": "No se pudieron generar los datos para el gráfico"}), 500
 
 @app.route('/api/ordenes/pendientes-count')
 @login_required
