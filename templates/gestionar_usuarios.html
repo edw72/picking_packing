@@ -1,0 +1,93 @@
+{% extends "layout.html" %}
+
+{% block title %}Administrar Usuarios{% endblock %}
+
+{% block styles %}
+<style>
+    .admin-container { display: grid; grid-template-columns: 1fr 2fr; gap: 2rem; }
+    .form-container, .list-container { background: white; padding: 2em; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .form-group { margin-bottom: 1rem; }
+    label { display: block; margin-bottom: 0.5rem; font-weight: bold; }
+    input[type="text"], input[type="password"], select { width: 100%; padding: 0.7rem; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
+    .submit-btn { width: 100%; padding: 0.8rem; background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1rem; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 0.8rem; border-bottom: 1px solid #ddd; text-align: left;}
+    th { background-color: #f8f9fa; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>Administración de Usuarios</h1>
+
+<!-- Añadir enlace a esta página en la navegación de admin -->
+<div class="navegacion-modulos" style="margin-bottom: 2rem;">
+    <strong>Módulos Admin:</strong>
+    <a href="{{ url_for('reportes_y_busqueda') }}">Reportes</a> |
+    <a href="{{ url_for('gestionar_usuarios') }}" style="font-weight: bold; color: #337ab7;">Usuarios</a>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+<div class="admin-container">
+    <div class="form-container">
+        <h2>Crear Nuevo Usuario</h2>
+        <form method="POST">
+            <div class="form-group">
+                <label for="username">Nombre de Usuario</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Contraseña</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            <div class="form-group">
+                <label for="role">Rol</label>
+                <select id="role" name="role">
+                    <option value="operario">Operario</option>
+                    <option value="admin">Administrador</option>
+                </select>
+            </div>
+            <button type="submit" class="submit-btn">Crear Usuario</button>
+        </form>
+    </div>
+
+    <div class="list-container">
+        <h2>Usuarios Existentes</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Usuario</th>
+                    <th>Rol</th>
+                    <th style="text-align: right;">Acciones</th> <!-- Nueva columna -->
+                </tr>
+            </thead>
+            <tbody>
+                {% for usuario in usuarios %}
+                <tr>
+                    <td>{{ usuario.id }}</td>
+                    <td>{{ usuario.username }}</td>
+                    <td>{{ usuario.role }}</td>
+                    <td style="text-align: right;">
+                        <a href="{{ url_for('editar_usuario', user_id=usuario.id) }}" class="action-link" style="background-color: #f0ad4e; color:white;">Editar</a>
+                        
+                        <!-- El botón de borrar solo aparece si no es el usuario actual -->
+                        {% if usuario.id != current_user.id %}
+                        <form action="{{ url_for('borrar_usuario', user_id=usuario.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('¿Está seguro de que desea eliminar a {{ usuario.username }}? Esta acción es permanente.');">
+                            <button type="submit" class="action-link" style="background-color: #d9534f; color:white; border:none; cursor:pointer;">Borrar</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

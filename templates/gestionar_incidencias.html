@@ -1,0 +1,78 @@
+{% extends "layout.html" %}
+
+{% block title %}Gestión de Incidencias{% endblock %}
+
+{% block styles %}
+<style>
+    /* ... (puedes copiar estilos de otras tablas para mantener la coherencia) ... */
+    .incidencia-card {
+        background: white;
+        border: 1px solid #ddd;
+        border-left: 5px solid #d9534f; /* Borde rojo para destacar */
+        border-radius: 5px;
+        margin-bottom: 1.5rem;
+        padding: 1.5rem;
+    }
+    .incidencia-card h2 { margin-top: 0; }
+    .item-problematico { background-color: #fcf8e3; border: 1px solid #faebcc; }
+</style>
+{% endblock %}
+
+{% block content %}
+    <h1>Gestión de Incidencias de Picking</h1>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="flash flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    {% for orden in ordenes %}
+        <div class="incidencia-card">
+            <h2>Pedido #{{ orden.numero_pedido }} (Cliente: {{ orden.cliente_nombre }})</h2>
+            <p>Reportado en Lote #{{ orden.lote_id }} por <strong>{{ orden.lote.operario.username }}</strong>.</p>
+            <table style="width: 100%; margin-top: 1em;">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Descripción</th>
+                        <th>Solicitado</th>
+                        <th>Recogido</th>
+                        <th>Incidencia</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in orden.items %}
+                    <tr class="{{ 'item-problematico' if item.tiene_incidencia else '' }}">
+                        <td>{{ item.codigo_articulo }}</td>
+                        <td>{{ item.descripcion_articulo }}</td>
+                        <td>{{ item.cantidad_solicitada }}</td>
+                        <td>{{ item.cantidad_recogida }}</td>
+                        <td>
+                            {% if item.tiene_incidencia %}
+                                <strong>{{ item.tipo_incidencia.replace('_', ' ') }}</strong><br>
+                                <small><em>"{{ item.nota_incidencia }}"</em></small>
+                            {% else %}
+                                OK
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.tiene_incidencia %}
+                                <form action="{{ url_for('resolver_incidencia', item_id=item.id) }}" method="POST">
+                                    <button type="submit" class="action-link" style="background-color:#5cb85c; color:white;">Ajustar y Aprobar</button>
+                                </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p>¡Excelente! No hay incidencias pendientes de revisión.</p>
+    {% endfor %}
+
+{% endblock %}

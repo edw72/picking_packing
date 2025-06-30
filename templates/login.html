@@ -1,0 +1,47 @@
+{% extends "layout.html" %}
+
+{% block title %}Iniciar Sesión{% endblock %}
+
+{% block styles %}
+<style>
+    .login-container {
+        max-width: 400px;
+        margin: 5em auto;
+        padding: 2em;
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .login-container h1 { text-align: center; margin-bottom: 1.5em; }
+    .form-group { margin-bottom: 1.5em; }
+    .form-group label { display: block; margin-bottom: 0.5em; font-weight: bold; }
+    .form-group input { width: 100%; padding: 0.8em; font-size: 1em; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+    .submit-btn { width: 100%; padding: 1em; font-size: 1.1em; background-color: #337ab7; color: white; border: none; border-radius: 5px; cursor: pointer; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="login-container">
+    <h1>Iniciar Sesión</h1>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="flash flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('login') }}">
+        <div class="form-group">
+            <label for="username">Usuario</label>
+            <input type="text" id="username" name="username" required>
+        </div>
+        <div class="form-group">
+            <label for="password">Contraseña</label>
+            <input type="password" id="password" name="password" required>
+        </div>
+        <button type="submit" class="submit-btn">Entrar</button>
+    </form>
+</div>
+{% endblock %}

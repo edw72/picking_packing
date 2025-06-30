@@ -1,0 +1,67 @@
+{% extends "layout.html" %}
+
+{% block title %}Despacho Pedido #{{ orden.numero_pedido }}{% endblock %}
+
+{% block styles %}
+<style>
+    .container { max-width: 800px; margin: 2em auto; }
+    .card { background: white; padding: 2em; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    .scan-gate { text-align: center; padding: 3em 1em; border: 2px dashed #ccc; }
+    .scan-gate h2 { margin-top: 0; }
+    .scan-input { padding: 12px; font-size: 18px; width: 80%; text-align: center; margin-bottom: 1em; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <a href="{{ url_for('dashboard_despacho') }}">← Volver al Dashboard de Despacho</a>
+
+    <div class="card" style="margin-top: 1rem;">
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="flash flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <!-- Lógica principal: muestra una vista u otra -->
+    {% if verificado %}
+        <!-- VISTA 2: DESPACHO COMPLETO (después de la verificación) -->
+        <h1>Despachar Pedido #{{ orden.numero_pedido }}</h1>
+        <p>Cliente: <strong>{{ orden.cliente_nombre }}</strong></p>
+        <hr>
+        <h2>Información del Envío</h2>
+        <form action="{{ url_for('detalle_despacho', orden_id=orden.id) }}" method="POST">
+            <div class="form-group" style="margin-bottom: 1em;">
+                <label for="transportista">Empresa de Transporte:</label>
+                <input type="text" id="transportista" name="transportista" required style="width: 100%; padding: 8px; font-size: 16px;">
+            </div>
+            <div class="form-group" style="margin-bottom: 1em;">
+                <label for="numero_seguimiento">Número de Seguimiento (Tracking):</label>
+                <input type="text" id="numero_seguimiento" name="numero_seguimiento" required style="width: 100%; padding: 8px; font-size: 16px;">
+            </div>
+            <div style="text-align: center; margin-top: 2em;">
+                <button type="submit" class="finalizar-btn" style="background-color: #5cb85c; padding: 15px 30px; font-size: 18px; border: none; border-radius: 5px; cursor: pointer;">
+                    Marcar como DESPACHADO
+                </button>
+            </div>
+        </form>
+
+    {% else %}
+        <!-- VISTA 1: PUERTA DE VERIFICACIÓN -->
+        <div class="scan-gate">
+            <h2>Verificación de Despacho</h2>
+            <p>Por favor, escanee la etiqueta de la caja para confirmar que corresponde a la orden <strong>#{{ orden.numero_pedido }}</strong>.</p>
+            <form action="{{ url_for('verificar_despacho', orden_id=orden.id) }}" method="POST">
+                <input type="text" name="codigo_escaneado" class="scan-input" placeholder="Escanear código de la caja..." autofocus>
+                <br>
+                <button type="submit" class="scan-btn">Verificar Caja</button>
+            </form>
+        </div>
+    {% endif %}
+
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- El título será dinámico -->
+    <title>{% block title %}App de Picking{% endblock %} - Mi Empresa</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0; 
+            background-color: #f4f4f9; 
+            color: #333; 
+        }
+        header {
+            background-color: #fff;
+            padding: 10px 2em;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .logo img {
+            height: 80px; /* Ajusta la altura de tu logo */
+        }
+        .nav {
+            display: flex;
+            align-items: center;
+            gap: 1em;
+        }
+        .nav-admin-links {
+            display: flex;
+            align-items: center;
+            gap: 1.5em;
+            font-weight: bold;
+            border-right: 1px solid #ccc;
+            padding-right: 1.5em;
+            margin-right: 0.5em;
+        }
+        .nav-admin-links a, .user-info a {
+            text-decoration: none;
+            color: #007bff;
+        }
+        .nav-admin-links a:hover, .user-info a:hover {
+            text-decoration: underline;
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1em;
+        }
+        main {
+            padding: 2em;
+        }
+        /* Estilos para los mensajes flash */
+        .flash {
+            padding: 1rem;
+            margin: 1rem 0;
+            border: 1px solid transparent;
+            border-radius: .25rem;
+            text-align: center;
+            font-weight: bold;
+        }
+        .flash-success {
+            color: #155724;
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+        }
+        .flash-error {
+            color: #721c24;
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+        }
+        .flash-info {
+            color: #0c5460;
+            background-color: #d1ecf1;
+            border-color: #bee5eb;
+        }
+        .flash-warning {
+            color: #856404;
+            background-color: #fff3cd;
+            border-color: #ffeeba;
+        }
+    </style>
+    <!-- Bloque para estilos específicos de cada página -->
+    {% block styles %}{% endblock %}
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <!-- url_for('static', ...) genera la URL correcta a la carpeta static -->
+            <a href="{{ url_for('dashboard') }}">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo de la Empresa">
+            </a>
+        </div>
+        <nav class="nav">
+             {% if current_user.is_authenticated %}
+                <!-- Panel de Admin visible solo para el rol 'admin' -->
+                {% if current_user.role == 'admin' %}
+                    <div class="nav-admin-links">
+                        <a href="{{ url_for('dashboard') }}">Inicio</a>
+                        <a href="{{ url_for('reportes_y_busqueda') }}">Búsqueda</a>
+                        <a href="{{ url_for('reporte_operarios') }}">Rendimiento</a>
+                        <a href="{{ url_for('gestionar_incidencias') }}">Incidencias Activas</a>
+                        <a href="{{ url_for('historial_incidencias') }}">Historial Incidencias</a>
+                        <a href="{{ url_for('gestionar_usuarios') }}">Usuarios</a>
+                        <!-- ENLACE A INCIDENCIAS CON EL ICONO DE NOTIFICACIÓN -->
+                        <a href="{{ url_for('gestionar_incidencias') }}" id="nav-incidencias-link" style="position: relative; text-decoration:none;" title="Ver incidencias pendientes">
+                            <span style="font-size: 1.5rem;">🔔</span>
+                            <span id="incidencias-badge" style="position: absolute; top: -5px; right: -10px; background-color: red; color: white; border-radius: 50%; padding: 2px 6px; font-size: 0.7rem; display: none;">0</span>
+                        </a>
+                    </div>
+                {% endif %}
+
+                <!-- Info de usuario y Logout para todos -->
+                <div class="user-info">
+                    <span>Hola, <strong>{{ current_user.username }}</strong> ({{ current_user.role }})</span>
+                    <a href="{{ url_for('logout') }}" style="color: #d9534f;">Cerrar Sesión</a>
+                </div>
+             {% endif %}
+        </nav>
+    </header>
+
+    <main>
+        <!-- Bloque donde se insertará el contenido de cada página hija -->
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- ========= SCRIPT DE NOTIFICACIONES (SOLO PARA ADMIN) ========= -->
+    {% if current_user.is_authenticated and current_user.role == 'admin' %}
+        <!-- Div invisible para pasar datos de Flask a JavaScript -->
+        <div id="audio-container" 
+             data-notification-sound="{{ url_for('static', filename='sounds/notification.mp3') }}"
+             data-silent-sound="{{ url_for('static', filename='sounds/silent.mp3') }}"
+             data-check-url="{{ url_for('api_incidencias_pendientes_count') }}"
+             style="display: none;">
+        </div>
+
+        <!-- Enlazamos nuestro archivo JavaScript externo -->
+        <script src="{{ url_for('static', filename='js/notifications.js') }}"></script>
+    {% endif %}
+
+    <!-- Bloque para scripts específicos de cada página (como Chart.js) -->
+    {% block scripts %}{% endblock %}
+</body>
+</html>

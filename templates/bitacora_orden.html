@@ -1,0 +1,126 @@
+{% extends "layout.html" %}
+
+{% block title %}Bitácora de la Orden #{{ orden.numero_pedido }}{% endblock %}
+
+{% block styles %}
+<style>
+    .bitacora-container { max-width: 1000px; margin: auto; }
+    .card { background: white; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 2rem; }
+    .card-header { padding: 1rem 1.5rem; background-color: #f8f9fa; border-bottom: 1px solid #ddd; }
+    .card-header h2 { margin: 0; font-size: 1.5rem; }
+    .card-body { padding: 1.5rem; }
+
+    .timeline { list-style: none; padding-left: 1rem; border-left: 3px solid #007bff; }
+    .timeline-item { position: relative; padding-bottom: 1.5rem; }
+    .timeline-item::before { /* El círculo en la línea de tiempo */
+        content: '';
+        position: absolute;
+        left: -28px; top: 0;
+        width: 16px; height: 16px;
+        border-radius: 50%;
+        background: white;
+        border: 3px solid #007bff;
+    }
+    .timeline-title { font-weight: bold; font-size: 1.1rem; }
+    .timeline-meta { font-size: 0.9rem; color: #666; margin-left: 0.5rem; }
+    .timeline-meta .duracion { font-weight: bold; color: #333; }
+
+    .incidencia-log { background-color: #fffbe6; border: 1px solid #ffe58f; padding: 1rem; border-radius: 5px; margin-top: 0.5rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="bitacora-container">
+    <a href="{{ url_for('reportes_y_busqueda') }}" class="back-link">← Volver a Reportes</a>
+    
+    <div class="card">
+        <div class="card-header">
+            <h2>Bitácora de la Orden #{{ orden.numero_pedido }}</h2>
+        </div>
+        <div class="card-body">
+            <p><strong>Cliente:</strong> {{ orden.cliente_nombre }}</p>
+            <p><strong>Estado Actual:</strong> <span class="estado estado-{{ orden.estado }}">{{ orden.estado.replace('_', ' ') }}</span></p>
+            {% if duraciones.total %}
+            <p><strong>Tiempo Total de Ciclo:</strong> <span class="duracion">{{ duraciones.total }}</span></p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header"><h2>Línea de Tiempo del Proceso</h2></div>
+        <div class="card-body">
+            <ul class="timeline">
+                <!-- Creación -->
+                <li class="timeline-item">
+                    <div class="timeline-title">Orden Creada</div>
+                    <span class="timeline-meta">{{ orden.fecha_creacion | localtime }}</span>
+                </li>
+                <!-- Picking -->
+                <li class="timeline-item">
+                    <div class="timeline-title">Picking</div>
+                    <span class="timeline-meta">
+                        {{ orden.fecha_inicio_picking | localtime if orden.fecha_inicio_picking else 'Pendiente' }}
+                        {% if orden.lote and orden.lote.operario %} por <strong>{{ orden.lote.operario.username }}</strong>{% endif %}
+                        {% if duraciones.picking %} | Duración: <span class="duracion">{{ duraciones.picking }}</span>{% endif %}
+                    </span>
+                    <!-- Mostrar incidencias de picking -->
+                    {% for item in orden.items %}
+                        {% if item.historial_incidencias %}
+                            {% for incidencia in item.historial_incidencias %}
+                                <div class="incidencia-log">
+                                    <strong>Incidencia en {{ item.codigo_articulo }}:</strong> {{ incidencia.tipo_incidencia.replace('_', ' ') }}.
+                                    <small>"{{ incidencia.nota_incidencia }}"</small>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endfor %}
+                </li>
+                <!-- Packing -->
+                <li class="timeline-item">
+                    <div class="timeline-title">Packing</div>
+                    <span class="timeline-meta">
+                        {{ orden.fecha_fin_packing | localtime if orden.fecha_fin_packing else 'Pendiente' }}
+                        {% if orden.packer %} por <strong>{{ orden.packer.username }}</strong>{% endif %}
+                        {% if duraciones.packing %} | Duración: <span class="duracion">{{ duraciones.packing }}</span>{% endif %}
+                    </span>
+                </li>
+                <!-- Despacho -->
+                <li class="timeline-item" style="padding-bottom:0;">
+                    <div class="timeline-title">Despacho</div>
+                     <span class="timeline-meta">
+                        {{ orden.fecha_despacho | localtime if orden.fecha_despacho else 'Pendiente' }}
+                        {% if orden.transportista %} con <strong>{{ orden.transportista }}</strong> (Tracking: {{ orden.numero_seguimiento }}){% endif %}
+                        {% if duraciones.despacho %} | Duración: <span class="duracion">{{ duraciones.despacho }}</span>{% endif %}
+                    </span>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header"><h2>Detalle de Artículos</h2></div>
+        <div class="card-body">
+            <table class="kpi-table">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Descripción</th>
+                        <th>Cantidad Solicitada (Final)</th>
+                        <th>Cantidad Recogida</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in orden.items %}
+                    <tr>
+                        <td>{{ item.codigo_articulo }}</td>
+                        <td>{{ item.descripcion_articulo }}</td>
+                        <td>{{ item.cantidad_solicitada }}</td>
+                        <td>{{ item.cantidad_recogida }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

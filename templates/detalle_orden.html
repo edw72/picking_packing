@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detalle Pedido #{{ orden.numero_pedido }}</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; background-color: #f4f4f9; color: #333; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 2em; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1, h2 { color: #333; border-bottom: 2px solid #eee; padding-bottom: 0.5em; }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1em; margin-bottom: 2em; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1em; }
+        th, td { border: 1px solid #ddd; padding: 0.8em; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .acciones { margin-top: 2em; display: flex; gap: 1em; }
+        .btn { padding: 0.8em 1.5em; border: none; border-radius: 5px; color: white; font-size: 1em; cursor: pointer; text-decoration: none; }
+        .btn-picking { background-color: #337ab7; }
+        .btn-packing { background-color: #5cb85c; }
+        .btn-despacho { background-color: #777; }
+        .back-link { display: block; margin-bottom: 2em; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="{{ url_for('dashboard') }}" class="back-link">← Volver al Dashboard</a>
+        <h1>Detalle del Pedido #{{ orden.numero_pedido }}</h1>
+
+        <div class="info-grid">
+            <div>
+                <h2>Información del Cliente</h2>
+                <p><strong>Nombre:</strong> {{ orden.cliente_nombre }}</p>
+                <p><strong>Dirección:</strong> {{ orden.cliente_direccion }}</p>
+            </div>
+            <div>
+                <h2>Estado de la Orden</h2>
+                <p><strong>Estado Actual:</strong> {{ orden.estado.replace('_', ' ') }}</p>
+                <p><strong>Fecha de Creación:</strong> {{ orden.fecha_creacion | localtime }}</p>
+            </div>
+        </div>
+
+        <h2>Artículos a Recoger</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Descripción</th>
+                    <th>Cantidad</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in orden.items %}
+                <tr>
+                    <td>{{ item.codigo_articulo }}</td>
+                    <td>{{ item.descripcion_articulo }}</td>
+                    <td>{{ item.cantidad_solicitada }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+    </div>
+</body>
+</html>

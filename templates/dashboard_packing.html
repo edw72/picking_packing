@@ -1,0 +1,114 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Dashboard de Packing
+{% endblock %}
+
+{% block styles %}
+    {# Reutilizamos los mismos estilos para mantener la coherencia visual #}
+    <style>
+        .estado { font-weight: bold; padding: 0.2em 0.5em; border-radius: 4px; color: white; display: inline-block; }
+        .estado-EMPACADO { background-color: #5cb85c; } /* Verde para indicar que está listo para packing */
+        table { width: 100%; border-collapse: collapse; margin-top: 1em; background-color: white; }
+        th, td { border: 1px solid #ddd; padding: 0.8em; text-align: left; }
+        th { background-color: #f8f9fa; }
+        tr:nth-child(even) { background-color: #f2f2f2; }
+        .action-link {
+            display: inline-block;
+            padding: 8px 15px;
+            font-size: 14px;
+            font-weight: bold;
+            color: white;
+            background-color: #337ab7; /* Azul para la acción de verificar */
+            border: none;
+            border-radius: 5px;
+            text-decoration: none;
+            text-align: center;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .action-link:hover {
+            background-color: #286090;
+            text-decoration: none;
+        }
+        .navegacion-modulos {
+            margin-bottom: 1.5em;
+            padding: 1em;
+            background-color: #e9ecef;
+            border-radius: 5px;
+            border: 1px solid #ced4da;
+        }
+        /* Estilos para los mensajes flash */
+        .flash {
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border: 1px solid transparent;
+            border-radius: .25rem;
+        }
+        .flash-success {
+            color: #155724;
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+        }
+        .flash-error {
+            color: #721c24;
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <h1>Órdenes para Packing</h1>
+
+      <!-- NAVEGACIÓN ENTRE MÓDULOS -->
+    <div class="navegacion-modulos" style="margin-bottom: 2rem;">
+        <strong>Módulos:</strong>
+        <a href="{{ url_for('dashboard') }}">Picking</a> |
+        <a href="{{ url_for('dashboard_packing') }}" style="font-weight: bold; color: #337ab7;">Packing</a> |
+        <a href="{{ url_for('dashboard_despacho') }}">Despacho</a> |
+        {% if current_user.role == 'admin' %}
+        | <a href="{{ url_for('reportes_y_busqueda') }}">Reportes</a>
+        {% endif %}
+    </div>
+
+    <!-- Mensajes Flash -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="flash flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <table>
+        <thead>
+            <tr>
+                <th>Pedido #</th>
+                <th>Cliente</th>
+                <th>Fecha Lote</th>
+                <th>Estado</th>
+                <th>Acción</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for orden in ordenes %}
+            <tr>
+                <td>{{ orden.numero_pedido }}</td>
+                <td>{{ orden.cliente_nombre }}</td>
+                <td>{{ orden.lote.fecha_creacion | localtime if orden.lote else 'N/A' }}</td>
+                <td>
+                    <span class="estado estado-{{ orden.estado }}">{{ orden.estado.replace('_', ' ') }}</span>
+                </td>
+                <td>
+                    <a href="{{ url_for('detalle_packing', orden_id=orden.id) }}" class="action-link">Verificar Orden</a>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="5" style="text-align: center; padding: 2em;">No hay órdenes para empacar en este momento. ¡Buen trabajo en el picking!</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

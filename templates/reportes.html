@@ -1,0 +1,205 @@
+{% extends "layout.html" %}
+
+{% block title %}Reportes y Búsqueda{% endblock %}
+
+{% block styles %}
+<style>
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2.5rem;
+    }
+    .kpi-card {
+        background-color: #fff;
+        padding: 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        text-align: center;
+    }
+    .kpi-card h3 {
+        margin-top: 0;
+        font-size: 1rem;
+        color: #6c757d;
+        text-transform: uppercase;
+    }
+    .kpi-card .value {
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: #337ab7;
+    }
+    .search-section, .result-section {
+        background-color: #fff;
+        padding: 2rem;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        margin-top: 2rem;
+    }
+    .search-form { display: flex; gap: 1rem; }
+    .search-form input[type="text"] { flex-grow: 1; padding: 0.8rem; font-size: 1rem; border: 1px solid #ccc; border-radius: 5px; }
+    .search-form button { padding: 0.8rem 1.5rem; font-size: 1rem; background-color: #5cb85c; color: white; border: none; border-radius: 5px; cursor: pointer; }
+    .result-section h2 { border-bottom: 2px solid #eee; padding-bottom: 0.5em; }
+    .timeline { list-style: none; padding: 0; }
+    .timeline li { margin-bottom: 0.8rem; }
+    .timeline .date { font-weight: bold; color: #337ab7; min-width: 200px; display: inline-block; }
+
+    /* --- NUEVOS ESTILOS PARA EL HISTORIAL --- */
+    .history-section {
+        margin-top: 1.5rem;
+    }
+    .history-list {
+        list-style: none;
+        padding: 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.8rem;
+    }
+    .history-item a {
+        display: inline-block;
+        background-color: #e9ecef;
+        color: #495057;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        text-decoration: none;
+        font-size: 0.9rem;
+        border: 1px solid #dee2e6;
+        transition: background-color 0.2s, color 0.2s;
+    }
+    .history-item a:hover {
+        background-color: #337ab7;
+        color: white;
+        border-color: #2e6da4;
+    }
+    /* --- FIN DE NUEVOS ESTILOS --- */
+</style>
+{% endblock %}
+
+{% block content %}
+    <h1>Reportes y Búsqueda Histórica</h1>
+
+   
+
+    <!-- NAVEGACIÓN DE MÓDULOS OPERATIVOS -->
+    <div class="navegacion-modulos" style="margin-bottom: 2rem;">
+        <strong>Módulos Operativos:</strong>
+        <a href="{{ url_for('dashboard') }}">Picking</a> |
+        <a href="{{ url_for('dashboard_packing') }}">Packing</a> |
+        <a href="{{ url_for('dashboard_despacho') }}">Despacho</a>
+    </div>
+
+    <!-- SECCIÓN DE KPIs -->
+    <h2>Indicadores de Rendimiento (KPIs)</h2>
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <h3>Tiempo Promedio de Picking</h3>
+            <p class="value">{{ stats.tiempo_picking_avg }}</p>
+        </div>
+        <div class="kpi-card">
+            <h3>Tiempo Promedio de Packing</h3>
+            <p class="value">{{ stats.tiempo_packing_avg }}</p>
+        </div>
+        <div class="kpi-card">
+            <h3>Ciclo Completo Promedio</h3>
+            <p class="value">{{ stats.tiempo_ciclo_completo_avg }}</p>
+        </div>
+        <div class="kpi-card">
+            <h3>Órdenes Creadas Hoy</h3>
+            <p class="value">{{ stats.ordenes_hoy }}</p>
+        </div>
+    </div>
+
+     <!-- SECCIÓN DE BÚSQUEDA -->
+    <div class="search-section">
+        <h2>Buscar Orden Histórica</h2>
+        <!-- Le damos un id al formulario y al input para que JS los encuentre -->
+        <form id="search-form" action="{{ url_for('reportes_y_busqueda') }}" method="POST" class="search-form">
+            <input type="text" id="search-input" name="numero_pedido" placeholder="Ingrese el número de pedido...">
+            <button type="submit">Buscar</button>
+        </form>
+
+        <!-- === NUEVO: SECCIÓN DE HISTORIAL DE BÚSQUEDA === -->
+        {% if historial %}
+        <div class="history-section">
+            <strong>Búsquedas recientes:</strong>
+            <ul class="history-list">
+                {% for numero_pedido in historial %}
+                <li class="history-item">
+                    <a href="#">{{ numero_pedido }}</a>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        <!-- === FIN DE SECCIÓN DE HISTORIAL === -->
+    </div>
+
+    <!-- SECCIÓN DE RESULTADOS -->
+    {% if orden %}
+    <div class="result-section">
+        <h2>
+            Resultado de la Búsqueda: Pedido #{{ orden.numero_pedido }}
+            <span style="float: right; font-size: 0.8em; display:flex; gap: 10px;">
+                <a href="{{ url_for('bitacora_orden', orden_id=orden.id) }}" class="btn btn-info">Ver Bitácora</a>
+                <!-- NUEVO BOTÓN DE CANCELACIÓN -->
+                {% if orden.estado != 'DESPACHADO' and orden.estado != 'CANCELADA' %}
+                <form action="{{ url_for('cancelar_orden', orden_id=orden.id) }}" method="POST" onsubmit="return confirm('¿Está seguro de que desea CANCELAR esta orden? Esta acción no se puede deshacer.');">
+                    <button type="submit" class="btn btn-danger" style="background-color: #d9534f; color:white; border:none; padding: 8px 12px; border-radius: 4px; cursor:pointer;">Cancelar Orden</button>
+                </form>
+                {% endif %}
+            </span>
+        </h2>
+        <p><strong>Cliente:</strong> {{ orden.cliente_nombre }}</p>
+        <p><strong>Estado Final:</strong> <span class="estado estado-{{ orden.estado }}">{{ orden.estado.replace('_', ' ') }}</span></p>
+        
+        <h3>Línea de Tiempo del Proceso</h3>
+        <ul class="timeline">
+            <li><span class="date">{{ orden.fecha_creacion | localtime if orden.fecha_creacion else 'N/A' }}</span> - Orden Creada</li>
+            <li><span class="date">{{ orden.fecha_inicio_picking | localtime if orden.fecha_inicio_picking else 'N/A' }}</span> - Inicio de Picking</li>
+            <li><span class="date">{{ orden.fecha_fin_picking | localtime if orden.fecha_fin_picking else 'N/A' }}</span> - Fin de Picking</li>
+            <li><span class="date">{{ orden.fecha_fin_packing | localtime if orden.fecha_fin_packing else 'N/A' }}</span> - Fin de Packing</li>
+            <li><span class="date">{{ orden.fecha_despacho | localtime if orden.fecha_despacho else 'N/A' }}</span> - Orden Despachada</li>
+        </ul>
+        
+        {% if orden.transportista %}
+        <h3>Información de Despacho</h3>
+        <p><strong>Transportista:</strong> {{ orden.transportista }}</p>
+        <p><strong>Número de Seguimiento:</strong> {{ orden.numero_seguimiento }}</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Mensajes Flash -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="flash flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+<!-- ========= INICIO DEL BLOQUE JAVASCRIPT ========= -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchForm = document.getElementById('search-form');
+    const searchInput = document.getElementById('search-input');
+    const historyLinks = document.querySelectorAll('.history-item a');
+
+    historyLinks.forEach(link => {
+        link.addEventListener('click', function(event) {
+            // Prevenimos la acción por defecto del enlace (que es no hacer nada)
+            event.preventDefault();
+
+            // 1. Tomamos el texto del enlace en el que se hizo clic.
+            const numeroPedido = this.textContent;
+            
+            // 2. Ponemos ese texto en el campo de búsqueda.
+            searchInput.value = numeroPedido;
+            
+            // 3. Enviamos el formulario automáticamente.
+            searchForm.submit();
+        });
+    });
+});
+</script>
+<!-- ========= FIN DEL BLOQUE JAVASCRIPT ========= -->
+{% endblock %}
+

@@ -1,0 +1,128 @@
+{% extends "layout.html" %}
+
+{% block title %}Historial de Incidencias{% endblock %}
+
+{% block styles %}
+<style>
+    .historial-container {
+        max-width: 1200px;
+        margin: auto;
+    }
+    .incidencia-card {
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        overflow: hidden; /* Para que el borde de color funcione bien */
+    }
+    .incidencia-header {
+        padding: 1rem 1.5rem;
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #ddd;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .incidencia-header h2 {
+        margin: 0;
+        font-size: 1.2rem;
+    }
+    .incidencia-header .estado {
+        font-weight: bold;
+        padding: 0.3em 0.8em;
+        border-radius: 20px;
+        color: white;
+    }
+    .estado-PENDIENTE { background-color: #f0ad4e; }
+    .estado-RESUELTA { background-color: #5cb85c; }
+
+    .incidencia-body {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.5rem;
+        padding: 1.5rem;
+    }
+    .info-col h4 {
+        margin-top: 0;
+        margin-bottom: 0.8rem;
+        color: #337ab7;
+        border-bottom: 2px solid #eee;
+        padding-bottom: 0.5rem;
+    }
+    .info-col p {
+        margin: 0.5rem 0;
+        font-size: 0.95rem;
+        line-height: 1.5;
+    }
+    .info-col p strong {
+        color: #333;
+    }
+    .info-col .nota {
+        font-style: italic;
+        color: #666;
+        background-color: #f9f9f9;
+        border-left: 3px solid #ccc;
+        padding: 0.5rem;
+        margin-top: 0.5rem;
+        display: block;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="historial-container">
+    <h1>Historial de Todas las Incidencias</h1>
+
+    {% for registro in historial %}
+    <div class="incidencia-card">
+        <div class="incidencia-header">
+            <h2>
+                Artículo: <strong>{{ registro.item_orden.codigo_articulo }}</strong> 
+                <span style="font-weight: normal; color: #555;">en Pedido #{{ registro.item_orden.orden.numero_pedido }}</span>
+            </h2>
+            <span class="estado estado-{{ registro.estado_resolucion }}">{{ registro.estado_resolucion }}</span>
+        </div>
+        <div class="incidencia-body">
+            
+            <!-- Columna 1: Detalles del Pedido -->
+            <div class="info-col">
+                <h4>Detalles del Pedido</h4>
+                <p><strong>Cliente:</strong> {{ registro.item_orden.orden.cliente_nombre }}</p>
+                <p><strong>Descripción Artículo:</strong> {{ registro.item_orden.descripcion_articulo }}</p>
+                <p>
+                    <strong>Cantidad Original:</strong> {{ registro.cantidad_solicitada_original }} | 
+                    <strong>Cantidad Recogida:</strong> {{ registro.cantidad_recogida_reportada }}
+                </p>
+            </div>
+            
+            <!-- Columna 2: Detalles del Reporte -->
+            <div class="info-col">
+                <h4>Reporte de Incidencia</h4>
+                <p><strong>Reportado por:</strong> {{ registro.reportado_por.username }}</p>
+                <p><strong>Fecha:</strong> {{ registro.fecha_reporte | localtime }}</p>
+                <p><strong>Tipo:</strong> {{ registro.tipo_incidencia.replace('_', ' ') }}</p>
+                {% if registro.nota_incidencia %}
+                <span class="nota"><strong>Nota:</strong> "{{ registro.nota_incidencia }}"</span>
+                {% endif %}
+            </div>
+
+            <!-- Columna 3: Detalles de la Resolución -->
+            {% if registro.estado_resolucion == 'RESUELTA' %}
+            <div class="info-col">
+                <h4>Resolución</h4>
+                <p><strong>Resuelto por:</strong> {{ registro.resuelta_por.username if registro.resuelta_por else 'N/A' }}</p>
+                <p><strong>Fecha:</strong> {{ registro.fecha_resolucion | localtime }}</p>
+                {% if registro.nota_resolucion %}
+                <span class="nota"><strong>Nota Admin:</strong> "{{ registro.nota_resolucion }}"</span>
+                {% endif %}
+            </div>
+            {% endif %}
+
+        </div>
+    </div>
+    {% else %}
+        <div class="alert alert-info" style="text-align: center; padding: 2rem;">No hay incidencias registradas en el historial.</div>
+    {% endfor %}
+</div>
+{% endblock %}
