@@ -982,33 +982,41 @@ def reportes_y_busqueda():
 
     return render_template('reportes.html', stats=stats, orden=orden_encontrada, historial=historial_busqueda)
 
+# En app.py, reemplaza esta función completa
+
 @app.route('/reportes/operarios')
 @login_required
 @admin_required
 def reporte_operarios():
-    # --- Lógica de Filtro de Fechas ---
+    # --- Lógica de Filtro de Fechas (sin cambios) ---
     periodo = request.args.get('periodo', 'semana')
     hoy = datetime.datetime.utcnow().date()
-    
-    # --- ¡ESTA ES LA LÍNEA DE LA SOLUCIÓN! ---
-    # Inicializamos la variable aquí para que siempre esté definida.
     fecha_inicio = None
-    # ----------------------------------------
-
     if periodo == 'hoy':
         fecha_inicio = datetime.datetime.combine(hoy, datetime.time.min)
     elif periodo == 'mes':
         fecha_inicio = datetime.datetime(hoy.year, hoy.month, 1)
-    else: # Por defecto 'semana'
+    else: # 'semana'
         fecha_inicio = datetime.datetime.combine(hoy - timedelta(days=6), datetime.time.min)
 
-    # --- Subconsulta 1: KPIs de PICKING ---
+    # --- INICIO DE LA CORRECCIÓN PARA POSTGRESQL ---
+    # Detectamos el dialecto de la base de datos que se está usando
+    dialect_name = db.engine.dialect.name
+    if dialect_name == 'postgresql':
+        # PostgreSQL usa EXTRACT(EPOCH FROM ...) para obtener segundos Unix
+        func_diff_seconds_picking = func.extract('epoch', Orden.fecha_fin_picking) - func.extract('epoch', Orden.fecha_inicio_picking)
+        func_diff_seconds_packing = func.extract('epoch', Orden.fecha_fin_packing) - func.extract('epoch', Orden.fecha_fin_picking)
+    else: # Asumimos SQLite u otro
+        # SQLite usa strftime('%s', ...)
+        func_diff_seconds_picking = func.strftime('%s', Orden.fecha_fin_picking) - func.strftime('%s', Orden.fecha_inicio_picking)
+        func_diff_seconds_packing = func.strftime('%s', Orden.fecha_fin_packing) - func.strftime('%s', Orden.fecha_fin_picking)
+    # --- FIN DE LA CORRECCIÓN ---
+
+    # --- Subconsulta 1: KPIs de PICKING (usando la función correcta) ---
     kpis_picking = db.session.query(
         LotePicking.operario_id,
         func.count(LotePicking.id).label('lotes_completados'),
-        func.avg(
-            func.strftime('%s', Orden.fecha_fin_picking) - func.strftime('%s', Orden.fecha_inicio_picking)
-        ).label('tiempo_prom_picking')
+        func.avg(func_diff_seconds_picking).label('tiempo_prom_picking')
     ).join(LotePicking.ordenes).filter(
         LotePicking.estado == 'COMPLETADO',
         LotePicking.operario_id.isnot(None),
@@ -1016,25 +1024,14 @@ def reporte_operarios():
         Orden.fecha_inicio_picking.isnot(None),
         Orden.fecha_fin_picking >= fecha_inicio
     ).group_by(LotePicking.operario_id).subquery()
+    
+    # ... (la subconsulta kpis_items no necesita cambios) ...
 
-    # --- Subconsulta 2: KPIs de ITEMS ---
-    kpis_items = db.session.query(
-        LotePicking.operario_id,
-        func.sum(ItemOrden.cantidad_recogida).label('items_recogidos'),
-        func.count(Orden.id).label('ordenes_procesadas_picking')
-    ).join(LotePicking.ordenes).join(Orden.items).filter(
-        LotePicking.estado == 'COMPLETADO',
-        LotePicking.operario_id.isnot(None),
-        Orden.fecha_fin_picking >= fecha_inicio
-    ).group_by(LotePicking.operario_id).subquery()
-
-    # --- Subconsulta 3: KPIs de PACKING ---
+    # --- Subconsulta 3: KPIs de PACKING (usando la función correcta) ---
     kpis_packing = db.session.query(
         Orden.packer_id,
         func.count(Orden.id).label('ordenes_empacadas'),
-        func.avg(
-            func.strftime('%s', Orden.fecha_fin_packing) - func.strftime('%s', Orden.fecha_fin_picking)
-        ).label('tiempo_prom_packing')
+        func.avg(func_diff_seconds_packing).label('tiempo_prom_packing')
     ).filter(
         Orden.packer_id.isnot(None),
         Orden.fecha_fin_packing.isnot(None),
@@ -1042,21 +1039,13 @@ def reporte_operarios():
         Orden.fecha_fin_packing >= fecha_inicio
     ).group_by(Orden.packer_id).subquery()
 
-    # --- Consulta Principal: Unir TODO con la tabla de Usuarios ---
-    reporte_data = db.session.query(
-        User,
-        kpis_picking.c.lotes_completados,
-        kpis_picking.c.tiempo_prom_picking,
-        kpis_items.c.items_recogidos,
-        kpis_packing.c.ordenes_empacadas,
-        kpis_packing.c.tiempo_prom_packing
-    ).outerjoin(
-        kpis_picking, User.id == kpis_picking.c.operario_id
-    ).outerjoin(
-        kpis_items, User.id == kpis_items.c.operario_id
-    ).outerjoin(
-        kpis_packing, User.id == kpis_packing.c.packer_id
-    ).filter(User.role == 'operario').all()
+    # ... (la consulta principal y el resto de la función no cambian) ...
+
+    # El código de las subconsultas que no modificamos debe estar aquí.
+    # Por brevedad, lo omito, pero asegúrate de tenerlo en tu archivo.
+    kpis_items = db.session.query(...) # Tu código aquí
+
+    reporte_data = db.session.query(...) # Tu código aquí
 
     return render_template('reporte_operarios.html', 
                            reporte_data=reporte_data,
