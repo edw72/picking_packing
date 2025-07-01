@@ -42,6 +42,36 @@
     .kpi-table th, .kpi-table td { border: 1px solid #ddd; padding: 12px; text-align: left; }
     .kpi-table th { background-color: #f8f9fa; font-weight: bold; }
     .kpi-table td.numeric { text-align: right; font-family: monospace, monospace; font-size: 1.1em; }
+
+     /* ... (tus estilos existentes) ... */
+
+    .charts-grid {
+        display: grid;
+        grid-template-columns: 1fr; /* Una columna por defecto (móviles) */
+        gap: 2rem;
+        margin-bottom: 2rem;
+        min-width: 0; 
+    }
+    .chart-container {
+        height: 300px; /* Altura fija para móviles */
+    }
+
+    /* En pantallas de tablet y más grandes, ponemos dos columnas */
+    @media (min-width: 992px) {
+        .charts-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+        .chart-container {
+            height: 400px; /* Más altura en pantallas grandes */
+        }
+    }
+
+    /* La tabla de este reporte también necesita la transformación a "tarjetas" */
+    @media screen and (max-width: 768px) {
+        /* ... (copia aquí los estilos responsive de la tabla del Paso 2) ... */
+    } 
+
+    
 </style>
 {% endblock %}
 

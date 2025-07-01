@@ -108,6 +108,43 @@
             text-decoration: line-through;
             opacity: 0.6;
         }
+
+
+         /* Estilos Responsive para la Tabla */
+    @media screen and (max-width: 768px) {
+        table { border: 0; }
+        table thead {
+            border: none;
+            clip: rect(0 0 0 0);
+            height: 1px;
+            margin: -1px;
+            overflow: hidden;
+            padding: 0;
+            position: absolute;
+            width: 1px;
+        }
+        table tr {
+            border-bottom: 3px solid #ddd;
+            display: block;
+            margin-bottom: .625em;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        table td {
+            border-bottom: 1px solid #ddd;
+            display: block;
+            font-size: .8em;
+            text-align: right; /* Alinear el contenido a la derecha */
+        }
+        table td::before {
+            /* Usamos el atributo data-label para mostrar el nombre de la columna */
+            content: attr(data-label);
+            float: left; /* Alinear la etiqueta a la izquierda */
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        table td:last-child { border-bottom: 0; }
+    }
     </style>
 {% endblock %}
 
@@ -184,6 +221,15 @@
             </thead>
             <tbody>
                 {% for orden in ordenes %}
+
+                    <tr>
+                        <td data-label="Seleccionar">{% if orden.estado == 'PENDIENTE' %}<input type="checkbox" ...>{% endif %}</td>
+                        <td data-label="Pedido #">{{ orden.numero_pedido }}</td>
+                        <td data-label="Cliente">{{ orden.cliente_nombre }}</td>
+                        <td data-label="Estado"><span class="estado...">{{ orden.estado... }}</span></td>
+                        <td data-label="Asignado a">...</td>
+                        <td data-label="Acción">...</td>
+                    </tr>
                     <tr class="{{ 'orden-cancelada' if orden.estado == 'CANCELADA' else '' }}">
                         <td style="text-align: center;">
                             {% if orden.estado == 'PENDIENTE' %}

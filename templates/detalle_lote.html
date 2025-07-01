@@ -5,6 +5,32 @@
 {% block styles %}
 <style>
     /* Estilos generales del contenedor */
+
+     /* ... (tus estilos existentes) ... */
+    .container {
+        padding: 1em; /* Menos padding en móviles */
+    }
+    .scan-form {
+        flex-direction: column; /* Apila el input y el botón en móviles */
+    }
+    .scan-input, .scan-btn {
+        width: 100%; /* Ocupan todo el ancho */
+        font-size: 1.2rem; /* Hacemos la fuente más grande */
+        padding: 15px; /* Botones y campos más grandes para tocar */
+    }
+    .scan-btn {
+        margin-top: 0.5em;
+    }
+
+    @media (min-width: 768px) {
+        .container { padding: 2em; }
+        .scan-form {
+            flex-direction: row; /* Vuelve a ponerlos en fila en pantallas grandes */
+        }
+        .scan-btn { margin-top: 0; }
+    }
+
+    
     .container { max-width: 900px; margin: auto; background: white; padding: 2em; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
     h1, h2 { border-bottom: 2px solid #eee; padding-bottom: 0.5em; }
     .back-link { display: inline-block; margin-bottom: 1rem; color: #337ab7; text-decoration: none; }
