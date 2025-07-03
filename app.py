@@ -825,37 +825,74 @@ def finalizar_packing(orden_id):
 
 # --- ENDPOINT DE LA API (SIN CAMBIOS) ---
 @app.route('/api/ordenes/crear-desde-factura', methods=['POST'])
-
 def crear_orden_desde_factura():
+    # 1. Verificación de seguridad
     api_key = request.headers.get('X-API-KEY')
     if not api_key or api_key != app.config['API_SECRET_KEY']:
         return jsonify({'error': 'Acceso no autorizado.'}), 403
+
+    # 2. Obtención y validación de datos
     data = request.get_json()
     if not data:
         return jsonify({'error': 'No se recibieron datos JSON.'}), 400
+        
+    # --- DEPURACIÓN: Imprimimos los datos recibidos en los logs de Render ---
+    print("--- Datos recibidos en la API para crear orden ---")
+    print(json.dumps(data, indent=2))
+    # --------------------------------------------------------------------
+
     if not all(k in data for k in ['pedido', 'cliente', 'items']) or not data['items']:
-        return jsonify({'error': 'Faltan datos en el JSON.'}), 400
+        return jsonify({'error': 'Faltan datos esenciales en el JSON (pedido, cliente o items).'}), 400
+
+    # 3. Evitar duplicados
     if Orden.query.filter_by(numero_pedido=data['pedido']).first():
-        return jsonify({'mensaje': 'Esta orden ya existe.'}), 200
+        print(f"Orden duplicada detectada y omitida: #{data['pedido']}")
+        return jsonify({'mensaje': f'La orden #{data["pedido"]} ya existe y fue omitida.'}), 200
+
     try:
+        # 4. Crear la orden principal
         nueva_orden = Orden(
             numero_pedido=data['pedido'],
             cliente_nombre=data['cliente'].get('nombre', 'N/A'),
             cliente_direccion=data['cliente'].get('direccion', 'N/A')
+            # Las fechas y estados se ponen por defecto
         )
         db.session.add(nueva_orden)
-        for item_data in data['items']:
+        
+        # Hacemos un "pre-commit" para que `nueva_orden` obtenga un ID.
+        # Esto es crucial para establecer la relación con los ítems.
+        db.session.flush()
+
+        print(f"Orden #{nueva_orden.numero_pedido} creada con ID {nueva_orden.id}. Añadiendo {len(data['items'])} ítems...")
+
+        # 5. Bucle para crear los ítems
+        for i, item_data in enumerate(data['items']):
+            # Verificación de que el ítem tiene los datos mínimos
+            if not item_data.get('codigo') or not item_data.get('cantidad'):
+                print(f"  -> Omitiendo ítem #{i+1} por falta de datos (código o cantidad).")
+                continue # Pasa al siguiente ítem del bucle
+
             nuevo_item = ItemOrden(
-                orden=nueva_orden,
+                orden_id=nueva_orden.id, # Usamos el ID directamente
                 codigo_articulo=item_data.get('codigo', 'N/A'),
                 descripcion_articulo=item_data.get('articulo', 'N/A'),
-                cantidad_solicitada=item_data.get('cantidad', 0)
+                cantidad_solicitada=int(item_data.get('cantidad', 0))
             )
             db.session.add(nuevo_item)
+            print(f"  -> Añadido a la sesión: {item_data.get('codigo')} (Cantidad: {item_data.get('cantidad')})")
+
+        # 6. Commit final para guardar todo en la base de datos
         db.session.commit()
+        print("--- Commit final exitoso. Todos los ítems guardados. ---")
         return jsonify({'mensaje': 'Orden creada con éxito', 'id_orden': nueva_orden.id}), 201
+
     except Exception as e:
+        # Si algo falla, deshacemos todos los cambios de esta transacción
         db.session.rollback()
+        print(f"!!! ERROR al crear la orden en la base de datos: {e}")
+        # Importante: imprimimos el error en los logs para poder depurarlo
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': f'Ocurrió un error en el servidor: {str(e)}'}), 500
     
 
