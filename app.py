@@ -755,45 +755,49 @@ def detalle_packing(orden_id):
         flash('Esta orden no está lista para packing.', 'error')
         return redirect(url_for('dashboard_packing'))
 
-    if request.method == 'POST':
-        # --- LÓGICA DE ESCANEO DE PACKING ---
-        codigo_escaneado = request.form.get('codigo_articulo', '').strip()
-        if not codigo_escaneado:
-            flash('No se ingresó ningún código.', 'error')
-            return redirect(url_for('detalle_packing', orden_id=orden_id))
+    session_key = f'packing_{orden_id}'
 
-        item_encontrado = None
-        for item in orden.items:
-            # En packing, comparamos con la cantidad que YA FUE RECOGIDA en el picking.
-            if item.codigo_articulo == codigo_escaneado and item.cantidad_recogida < item.cantidad_solicitada:
-                flash(f"Error: La cantidad de picking para {item.codigo_articulo} es {item.cantidad_recogida} pero se solicitó {item.cantidad_solicitada}", "error")
-                # Esto es una validación de seguridad, no debería pasar si el picking fue correcto.
-                pass 
+    # Lógica para la carga inicial de la página (GET)
+    if request.method == 'GET':
+        # Si la sesión para esta orden de packing no existe, la inicializamos.
+        if session_key not in session:
+            print(f"--- Inicializando sesión de packing para orden #{orden.id} ---")
+            initial_counts = {}
+            # Iteramos sobre los ítems de la base de datos
+            for item in orden.items:
+                # ¡AQUÍ ESTÁ LA MAGIA!
+                # Si un ítem ya tiene su cantidad recogida completa (como los de servicio),
+                # precargamos ese valor en nuestro contador de packing.
+                if item.cantidad_recogida >= item.cantidad_solicitada:
+                    initial_counts[item.codigo_articulo] = item.cantidad_solicitada
+                    print(f"  -> Precargando ítem de servicio/completo: {item.codigo_articulo} con cantidad {item.cantidad_solicitada}")
             
-            if item.codigo_articulo == codigo_escaneado:
-                item_encontrado = item
-                break
-        
-        # En vez de un contador, usaremos un campo temporal en la sesión para el conteo de packing
-        session_key = f'packing_{orden_id}'
-        packing_scan_counts = session.get(session_key, {})
+            session[session_key] = initial_counts
 
+    # El resto del código de la función (tanto para GET como para POST) se mantiene,
+    # pero ahora parte de una sesión potencialmente ya inicializada.
+
+    # --- LÓGICA DE ESCANEO (POST) ---
+    if request.method == 'POST':
+        codigo_escaneado = request.form.get('codigo_articulo', '').strip()
+        # ... (Toda tu lógica de escaneo POST no necesita cambios) ...
+        # ... (buscar item, actualizar session[session_key], etc.) ...
+        packing_scan_counts = session.get(session_key, {})
+        item_encontrado = next((item for item in orden.items if item.codigo_articulo == codigo_escaneado), None)
         if item_encontrado:
             current_scan_count = packing_scan_counts.get(item_encontrado.codigo_articulo, 0)
             if current_scan_count < item_encontrado.cantidad_solicitada:
                 packing_scan_counts[item_encontrado.codigo_articulo] = current_scan_count + 1
-                session[session_key] = packing_scan_counts # Guardar en la sesión
+                session[session_key] = packing_scan_counts
             else:
-                flash(f'Ya se ha escaneado la cantidad completa para el artículo {codigo_escaneado}.', 'warning')
+                flash(f'Ya se ha escaneado la cantidad completa para {codigo_escaneado}.', 'warning')
         else:
             flash(f'El artículo {codigo_escaneado} no pertenece a esta orden.', 'error')
-        
         return redirect(url_for('detalle_packing', orden_id=orden_id))
 
     # --- LÓGICA PARA MOSTRAR LA PÁGINA (GET) ---
-    packing_scan_counts = session.get(f'packing_{orden_id}', {})
+    packing_scan_counts = session.get(session_key, {})
     
-    # Comprobar si el packing está completo
     packing_completo = True
     for item in orden.items:
         if packing_scan_counts.get(item.codigo_articulo, 0) != item.cantidad_solicitada:
@@ -825,6 +829,9 @@ def finalizar_packing(orden_id):
 
 
 # --- ENDPOINT DE LA API (SIN CAMBIOS) ---
+# Esta es la lista de codigos a procesar como recogidos pues son un servicio y no un producto fisico
+CODIGOS_DE_SERVICIO = {'0356', '0357', '0358', 'PROMO', 'EMP01'}
+
 @app.route('/api/ordenes/crear-desde-factura', methods=['POST'])
 def crear_orden_desde_factura():
     # 1. Verificación de seguridad
@@ -837,10 +844,8 @@ def crear_orden_desde_factura():
     if not data:
         return jsonify({'error': 'No se recibieron datos JSON.'}), 400
         
-    # --- DEPURACIÓN: Imprimimos los datos recibidos en los logs de Render ---
     print("--- Datos recibidos en la API para crear orden ---")
     print(json.dumps(data, indent=2))
-    # --------------------------------------------------------------------
 
     if not all(k in data for k in ['pedido', 'cliente', 'items']) or not data['items']:
         return jsonify({'error': 'Faltan datos esenciales en el JSON (pedido, cliente o items).'}), 400
@@ -856,42 +861,46 @@ def crear_orden_desde_factura():
             numero_pedido=data['pedido'],
             cliente_nombre=data['cliente'].get('nombre', 'N/A'),
             cliente_direccion=data['cliente'].get('direccion', 'N/A')
-            # Las fechas y estados se ponen por defecto
         )
         db.session.add(nueva_orden)
-        
-        # Hacemos un "pre-commit" para que `nueva_orden` obtenga un ID.
-        # Esto es crucial para establecer la relación con los ítems.
         db.session.flush()
 
         print(f"Orden #{nueva_orden.numero_pedido} creada con ID {nueva_orden.id}. Añadiendo {len(data['items'])} ítems...")
 
-        # 5. Bucle para crear los ítems
+        # 5. Bucle para crear los ítems (CON LA LÓGICA CORREGIDA)
         for i, item_data in enumerate(data['items']):
-            # Verificación de que el ítem tiene los datos mínimos
-            if not item_data.get('codigo') or not item_data.get('cantidad'):
-                print(f"  -> Omitiendo ítem #{i+1} por falta de datos (código o cantidad).")
-                continue # Pasa al siguiente ítem del bucle
+            # --- CORRECCIÓN: Definimos las variables al principio ---
+            codigo_item = item_data.get('codigo', '').strip()
+            cantidad_solicitada = int(item_data.get('cantidad', 0))
+            
+            # Ahora la validación se hace sobre las variables ya creadas
+            if not codigo_item or cantidad_solicitada <= 0:
+                print(f"  -> Omitiendo ítem #{i+1} por falta de código o cantidad válida.")
+                continue 
 
             nuevo_item = ItemOrden(
-                orden_id=nueva_orden.id, # Usamos el ID directamente
-                codigo_articulo=item_data.get('codigo', 'N/A'),
+                orden_id=nueva_orden.id,
+                codigo_articulo=codigo_item,
                 descripcion_articulo=item_data.get('articulo', 'N/A'),
-                cantidad_solicitada=int(item_data.get('cantidad', 0))
+                cantidad_solicitada=cantidad_solicitada
             )
-            db.session.add(nuevo_item)
-            print(f"  -> Añadido a la sesión: {item_data.get('codigo')} (Cantidad: {item_data.get('cantidad')})")
 
-        # 6. Commit final para guardar todo en la base de datos
+            if codigo_item in CODIGOS_DE_SERVICIO:
+                nuevo_item.cantidad_recogida = cantidad_solicitada
+                print(f"  -> Añadido ÍTEM DE SERVICIO: {codigo_item} (auto-completado)")
+            else:
+                nuevo_item.cantidad_recogida = 0
+                print(f"  -> Añadido a la sesión: {codigo_item} (Cantidad: {cantidad_solicitada})")
+            
+            db.session.add(nuevo_item)
+
+        # 6. Commit final
         db.session.commit()
         print("--- Commit final exitoso. Todos los ítems guardados. ---")
         return jsonify({'mensaje': 'Orden creada con éxito', 'id_orden': nueva_orden.id}), 201
 
     except Exception as e:
-        # Si algo falla, deshacemos todos los cambios de esta transacción
         db.session.rollback()
-        print(f"!!! ERROR al crear la orden en la base de datos: {e}")
-        # Importante: imprimimos el error en los logs para poder depurarlo
         import traceback
         traceback.print_exc()
         return jsonify({'error': f'Ocurrió un error en el servidor: {str(e)}'}), 500
