@@ -747,86 +747,6 @@ def dashboard_packing():
     ordenes_para_packing = Orden.query.filter_by(estado='EMPACADO').order_by(Orden.fecha_creacion.asc()).all()
     return render_template('dashboard_packing.html', ordenes=ordenes_para_packing)
 
-@app.route('/packing/<int:orden_id>', methods=['GET', 'POST'])
-@login_required
-def detalle_packing(orden_id):
-    orden = Orden.query.get_or_404(orden_id)
-    if orden.estado != 'EMPACADO':
-        flash('Esta orden no está lista para packing.', 'error')
-        return redirect(url_for('dashboard_packing'))
-
-    session_key = f'packing_{orden_id}'
-
-    # Lógica para la carga inicial de la página (GET)
-    if request.method == 'GET':
-        # Si la sesión para esta orden de packing no existe, la inicializamos.
-        if session_key not in session:
-            print(f"--- Inicializando sesión de packing para orden #{orden.id} ---")
-            initial_counts = {}
-            # Iteramos sobre los ítems de la base de datos
-            for item in orden.items:
-                # ¡AQUÍ ESTÁ LA MAGIA!
-                # Si un ítem ya tiene su cantidad recogida completa (como los de servicio),
-                # precargamos ese valor en nuestro contador de packing.
-                if item.cantidad_recogida >= item.cantidad_solicitada:
-                    initial_counts[item.codigo_articulo] = item.cantidad_solicitada
-                    print(f"  -> Precargando ítem de servicio/completo: {item.codigo_articulo} con cantidad {item.cantidad_solicitada}")
-            
-            session[session_key] = initial_counts
-
-    # El resto del código de la función (tanto para GET como para POST) se mantiene,
-    # pero ahora parte de una sesión potencialmente ya inicializada.
-
-    # --- LÓGICA DE ESCANEO (POST) ---
-    if request.method == 'POST':
-        codigo_escaneado = request.form.get('codigo_articulo', '').strip()
-        # ... (Toda tu lógica de escaneo POST no necesita cambios) ...
-        # ... (buscar item, actualizar session[session_key], etc.) ...
-        packing_scan_counts = session.get(session_key, {})
-        item_encontrado = next((item for item in orden.items if item.codigo_articulo == codigo_escaneado), None)
-        if item_encontrado:
-            current_scan_count = packing_scan_counts.get(item_encontrado.codigo_articulo, 0)
-            if current_scan_count < item_encontrado.cantidad_solicitada:
-                packing_scan_counts[item_encontrado.codigo_articulo] = current_scan_count + 1
-                session[session_key] = packing_scan_counts
-            else:
-                flash(f'Ya se ha escaneado la cantidad completa para {codigo_escaneado}.', 'warning')
-        else:
-            flash(f'El artículo {codigo_escaneado} no pertenece a esta orden.', 'error')
-        return redirect(url_for('detalle_packing', orden_id=orden_id))
-
-    # --- LÓGICA PARA MOSTRAR LA PÁGINA (GET) ---
-    packing_scan_counts = session.get(session_key, {})
-    
-    packing_completo = True
-    for item in orden.items:
-        if packing_scan_counts.get(item.codigo_articulo, 0) != item.cantidad_solicitada:
-            packing_completo = False
-            break
-
-    return render_template('detalle_packing.html', orden=orden, packing_counts=packing_scan_counts, packing_completo=packing_completo)
-
-
-@app.route('/packing/<int:orden_id>/finalizar', methods=['POST'])
-@login_required
-def finalizar_packing(orden_id):
-    orden = Orden.query.get_or_404(orden_id)
-    
-    # Aquí podríamos añadir una doble verificación final si fuera necesario
-    
-    orden.estado = 'LISTO_PARA_DESPACHO'
-    orden.fecha_fin_packing = datetime.datetime.utcnow()
-    orden.packer_id = current_user.id
-    db.session.commit()
-
-    # Limpiar los datos de sesión para esta orden
-    session.pop(f'packing_{orden_id}', None)
-
-    flash(f'Orden #{orden.numero_pedido} marcada como LISTA PARA DESPACHO.', 'success')
-    return redirect(url_for('dashboard_packing'))
-
-
-
 
 # --- ENDPOINT DE LA API (SIN CAMBIOS) ---
 # Esta es la lista de codigos a procesar como recogidos pues son un servicio y no un producto fisico
@@ -904,6 +824,83 @@ def crear_orden_desde_factura():
         import traceback
         traceback.print_exc()
         return jsonify({'error': f'Ocurrió un error en el servidor: {str(e)}'}), 500
+
+
+@app.route('/packing/<int:orden_id>', methods=['GET', 'POST'])
+@login_required
+def detalle_packing(orden_id):
+    orden = Orden.query.get_or_404(orden_id)
+    if orden.estado != 'EMPACADO':
+        flash('Esta orden no está lista para packing.', 'error')
+        return redirect(url_for('dashboard_packing'))
+
+    session_key = f'packing_{orden_id}'
+
+    # --- LÓGICA DE RESETEO FORZADO DE SESIÓN (GET) ---
+    if request.method == 'GET':
+        # Si la URL contiene ?reset=true, borramos la sesión vieja.
+        if request.args.get('reset') == 'true':
+            if session_key in session:
+                session.pop(session_key)
+                print(f"--- Sesión de packing para orden #{orden.id} reseteada forzosamente. ---")
+        
+        # Ahora, procedemos con la inicialización inteligente
+        if session_key not in session:
+            print(f"--- Inicializando sesión de packing para orden #{orden.id} ---")
+            initial_counts = {}
+            for item in orden.items:
+                if item.codigo_articulo in CODIGOS_DE_SERVICIO:
+                    initial_counts[item.codigo_articulo] = item.cantidad_solicitada
+                    print(f"  -> Precargando ÍTEM DE SERVICIO: {item.codigo_articulo}")
+            
+            session[session_key] = initial_counts
+
+    # --- LÓGICA DE ESCANEO (POST) ---
+    if request.method == 'POST':
+        # Esta parte no necesita cambios, ya que opera sobre la sesión ya limpia
+        codigo_escaneado = request.form.get('codigo_articulo', '').strip()
+        packing_scan_counts = session.get(session_key, {})
+        # ... (el resto de tu lógica POST se mantiene igual) ...
+        # ...
+        return redirect(url_for('detalle_packing', orden_id=orden_id))
+
+    # --- LÓGICA PARA MOSTRAR LA PÁGINA (GET) ---
+    packing_scan_counts = session.get(session_key, {})
+    
+    packing_completo = True
+    for item in orden.items:
+        if packing_scan_counts.get(item.codigo_articulo, 0) != item.cantidad_solicitada:
+            packing_completo = False
+            break
+
+    return render_template('detalle_packing.html', orden=orden, packing_counts=packing_scan_counts, packing_completo=packing_completo)
+
+
+#---------------------------
+
+
+@app.route('/packing/<int:orden_id>/finalizar', methods=['POST'])
+@login_required
+def finalizar_packing(orden_id):
+    orden = Orden.query.get_or_404(orden_id)
+    
+    # Aquí podríamos añadir una doble verificación final si fuera necesario
+    
+    orden.estado = 'LISTO_PARA_DESPACHO'
+    orden.fecha_fin_packing = datetime.datetime.utcnow()
+    orden.packer_id = current_user.id
+    db.session.commit()
+
+    # Limpiar los datos de sesión para esta orden
+    session.pop(f'packing_{orden_id}', None)
+
+    flash(f'Orden #{orden.numero_pedido} marcada como LISTA PARA DESPACHO.', 'success')
+    return redirect(url_for('dashboard_packing'))
+
+
+
+
+
     
 
     

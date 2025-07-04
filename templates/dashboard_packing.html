@@ -101,7 +101,7 @@
                     <span class="estado estado-{{ orden.estado }}">{{ orden.estado.replace('_', ' ') }}</span>
                 </td>
                 <td>
-                    <a href="{{ url_for('detalle_packing', orden_id=orden.id) }}" class="action-link">Verificar Orden</a>
+                    <a href="{{ url_for('detalle_packing', orden_id=orden.id, reset='true') }}" class="action-link">Verificar Orden</a>
                 </td>
             </tr>
             {% else %}
