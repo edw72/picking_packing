@@ -851,7 +851,7 @@ def detalle_packing(orden_id):
             for item in orden.items:
                 if item.codigo_articulo in CODIGOS_DE_SERVICIO:
                     initial_counts[item.codigo_articulo] = item.cantidad_solicitada
-                    print(f"  -> Precargando ÍTEM DE SERVICIO: {item.codigo_articulo}")
+                    print(f"  -> Precargando ÍTEM DE SERVICIO: {item.codigo_articulo}") 
             
             session[session_key] = initial_counts
 
