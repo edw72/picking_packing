@@ -449,7 +449,7 @@ def crear_lote():
 @login_required
 def detalle_lote(lote_id):
     lote = LotePicking.query.get_or_404(lote_id)
-    lista_consolidada = defaultdict(lambda: {'descripcion': '', 'solicitado': 0, 'recogido': 0})
+    lista_consolidada = defaultdict(lambda: {'descripcion': '', 'solicitado': 0, 'recogido': 0, 'items_individuales': []})
     
     for orden in lote.ordenes:
         for item in orden.items:
@@ -457,11 +457,12 @@ def detalle_lote(lote_id):
             consolidado['descripcion'] = item.descripcion_articulo
             consolidado['solicitado'] += item.cantidad_solicitada
             consolidado['recogido'] += item.cantidad_recogida
+            consolidado['items_individuales'].append(item)
             
     lista_final = sorted(lista_consolidada.items(), key=lambda x: x[0])
     picking_completo = all(item['recogido'] >= item['solicitado'] for _, item in lista_consolidada.items()) if lista_consolidada else False
 
-    return render_template('detalle_lote.html', lote=lote, lista_consolidada=lista_final, picking_completo=picking_completo)
+    return render_template('detalle_lote.html', lote=lote, lista_consolidada=lista_final, picking_completo=picking_completo )
 
 @app.route('/lote/<int:lote_id>/escanear', methods=['POST'])
 @login_required
@@ -1308,6 +1309,47 @@ def verificar_despacho(orden_id):
         flash(f'¡CAJA INCORRECTA! Se esperaba la orden #{orden.numero_pedido} pero se escaneó "{codigo_escaneado}".', 'error')
 
     return redirect(url_for('detalle_despacho', orden_id=orden_id))
+
+@app.route('/api/lote/<int:lote_id>/codigo/<codigo_articulo>/completar', methods=['POST'])
+@login_required
+@admin_required
+def api_completar_codigo_picking(lote_id, codigo_articulo):
+    """
+    Permite a un admin marcar todos los items con un código específico dentro 
+    de un lote como completamente recogidos.
+    """
+    lote = LotePicking.query.get_or_404(lote_id)
+    
+    total_solicitado_en_lote = 0
+    total_recogido_previo = 0
+
+    # Primero, calculamos los totales para devolver la información correcta
+    for orden in lote.ordenes:
+        for item in orden.items:
+            if item.codigo_articulo == codigo_articulo:
+                total_solicitado_en_lote += item.cantidad_solicitada
+                total_recogido_previo += item.cantidad_recogida # Para saber si ya estaba parcialmente recogido
+
+    # Segundo, actualizamos la base de datos
+    for orden in lote.ordenes:
+        for item in orden.items:
+            if item.codigo_articulo == codigo_articulo:
+                item.cantidad_recogida = item.cantidad_solicitada
+
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error al completar item manualmente: {e}")
+        return jsonify({'success': False, 'message': 'Error al guardar en la base de datos.'}), 500
+
+    return jsonify({
+        'success': True,
+        'message': f'Ítem {codigo_articulo} completado manualmente.',
+        'codigo_articulo': codigo_articulo,
+        'recogido': total_solicitado_en_lote, # Ahora lo recogido es igual a lo solicitado
+        'solicitado': total_solicitado_en_lote
+    })
 
 
 

@@ -5,39 +5,13 @@
 {% block styles %}
 <style>
     /* Estilos generales del contenedor */
-
-     /* ... (tus estilos existentes) ... */
-    .container {
-        padding: 1em; /* Menos padding en móviles */
-    }
-    .scan-form {
-        flex-direction: column; /* Apila el input y el botón en móviles */
-    }
-    .scan-input, .scan-btn {
-        width: 100%; /* Ocupan todo el ancho */
-        font-size: 1.2rem; /* Hacemos la fuente más grande */
-        padding: 15px; /* Botones y campos más grandes para tocar */
-    }
-    .scan-btn {
-        margin-top: 0.5em;
-    }
-
-    @media (min-width: 768px) {
-        .container { padding: 2em; }
-        .scan-form {
-            flex-direction: row; /* Vuelve a ponerlos en fila en pantallas grandes */
-        }
-        .scan-btn { margin-top: 0; }
-    }
-
-    
     .container { max-width: 900px; margin: auto; background: white; padding: 2em; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
     h1, h2 { border-bottom: 2px solid #eee; padding-bottom: 0.5em; }
     .back-link { display: inline-block; margin-bottom: 1rem; color: #337ab7; text-decoration: none; }
     .back-link:hover { text-decoration: underline; }
     
     /* Estilos del formulario de escaneo */
-    .scan-form { margin: 2em 0; display: flex; gap: 10px; }
+    .scan-form { margin: 2em 0; display: flex; gap: 10px; flex-direction: column; }
     .scan-input { flex-grow: 1; padding: 12px; font-size: 18px; border: 2px solid #ccc; border-radius: 5px; transition: border-color 0.3s; }
     .scan-input:focus { border-color: #337ab7; outline: none; }
     .scan-btn { padding: 12px 25px; font-size: 16px; background-color: #337ab7; color: white; border: none; border-radius: 5px; cursor: pointer; transition: background-color 0.3s; }
@@ -56,79 +30,63 @@
     th, td { border: 1px solid #ddd; padding: 0.8em; text-align: left; vertical-align: middle; }
     th { background-color: #f8f9fa; }
     td strong { font-size: 1.1em; }
+    
+    /* --- ESTILOS PARA LAS NUEVAS FUNCIONALIDADES --- */
+    .view-options { margin-bottom: 1rem; padding: 0.5rem; background-color: #f9f9f9; border-radius: 5px; }
+    .view-options label { font-weight: bold; cursor: pointer; }
 
-    /* --- ESTILOS PARA INCIDENCIAS --- */
-    .incidencia-btn {
-        background-color: #f0ad4e; color: white; border: none; padding: 4px 8px;
-        font-size: 12px; border-radius: 4px; cursor: pointer;
-    }
+    .action-buttons button { margin: 2px; }
+    .incidencia-btn { background-color: #f0ad4e; color: white; border: none; padding: 4px 8px; font-size: 12px; border-radius: 4px; cursor: pointer; }
     .incidencia-btn:hover { background-color: #ec971f; }
-    .incidencia-btn:disabled { background-color: #ccc; cursor: not-allowed; }
+    .completar-btn { background-color: #337ab7; color: white; border: none; padding: 4px 8px; font-size: 12px; border-radius: 4px; cursor: pointer; }
+    .completar-btn:hover { background-color: #286090; }
+    
+    tr.incidencia-reportada { background-color: #fcf8e3 !important; text-decoration: line-through; color: #8a6d3b; opacity: 0.7; }
+    .item-completado { background-color: #dff0d8 !important; color: #3c763d; }
+    body.ocultar-completados .item-completado { display: none; }
 
-    tr.incidencia-reportada {
-        background-color: #fcf8e3 !important; /* Un amarillo pálido */
-        text-decoration: line-through;
-        color: #8a6d3b;
-        opacity: 0.7;
-    }
-
-    /* Estilos para el Modal (la ventana emergente) */
-    .modal-overlay {
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background-color: rgba(0,0,0,0.6);
-        display: none; /* Oculto por defecto */
-        justify-content: center; align-items: center; z-index: 1000;
-    }
-    .modal-content {
-        background-color: white; padding: 2em; border-radius: 8px;
-        width: 90%; max-width: 500px; box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-    }
-    .modal-header {
-        display: flex; justify-content: space-between; align-items: center;
-        border-bottom: 1px solid #eee; padding-bottom: 1rem;
-    }
-    .modal-close-btn {
-        font-size: 1.5rem; font-weight: bold; border: none;
-        background: none; cursor: pointer;
-    }
+    /* Estilos del Modal (sin cambios) */
+    .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 1000; }
+    .modal-content { background-color: white; padding: 2em; border-radius: 8px; width: 90%; max-width: 500px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 1rem; }
+    .modal-close-btn { font-size: 1.5rem; font-weight: bold; border: none; background: none; cursor: pointer; }
     .modal-body .form-group { margin-bottom: 1rem; }
     .modal-body label { display: block; margin-bottom: 0.5rem; font-weight: bold; }
-    .modal-body input, .modal-body select, .modal-body textarea {
-        width: 100%; padding: 0.7rem; border-radius: 5px;
-        border: 1px solid #ccc; box-sizing: border-box;
-    }
+    .modal-body input, .modal-body select, .modal-body textarea { width: 100%; padding: 0.7rem; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
     .modal-actions { margin-top: 1.5em; text-align: right; }
     .modal-submit { background-color: #d9534f; color: white; padding: 0.7em 1.5em; border-radius: 5px; border: none; cursor: pointer; }
 
     /* Estilos de la barra de progreso */
     .progress-bar { background-color: #e9ecef; border-radius: 5px; overflow: hidden; height: 22px; border: 1px solid #ddd; }
-    .progress {
-        background-color: #5cb85c; color: white; text-align: center; font-weight: bold;
-        height: 100%; line-height: 22px; transition: width 0.4s ease-in-out;
-    }
+    .progress { background-color: #5cb85c; color: white; text-align: center; font-weight: bold; height: 100%; line-height: 22px; transition: width 0.4s ease-in-out; }
     
     /* Estilos del botón de finalizar */
-    .finalizar-btn {
-        background-color: #28a745; color: white; padding: 15px 30px; font-size: 18px;
-        border: none; border-radius: 5px; cursor: pointer;
-    }
+    .finalizar-btn { background-color: #28a745; color: white; padding: 15px 30px; font-size: 18px; border: none; border-radius: 5px; cursor: pointer; }
     .finalizar-btn:disabled { background-color: #ccc; cursor: not-allowed; }
+
+    @media (min-width: 768px) {
+        .scan-form { flex-direction: row; }
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container">
-    <a href="{{ url_for('dashboard') }}" class="back-link">← Volver al Dashboard de Picking</a>
+    <a href="{{ url_for('dashboard') }}" class="back-link">← Volver al Dashboard</a>
     <h1>Picking para Lote #{{ lote.id }}</h1>
 
-    <!-- Formulario de escaneo -->
     <form id="scan-form" class="scan-form">
-        <input type="text" name="codigo_articulo" id="scan-input" class="scan-input" placeholder="Escanear o escribir código de artículo..." autofocus onfocus="this.select()">
+        <input type="text" id="scan-input" class="scan-input" placeholder="Escanear o escribir código de artículo..." autofocus onfocus="this.select()">
         <button type="submit" class="scan-btn">Escanear</button>
     </form>
-
-    <!-- Div para feedback dinámico -->
     <div id="scan-feedback" class="scan-feedback"></div>
+
+    <div class="view-options">
+        <label>
+            <input type="checkbox" id="toggle-ocultar-completados">
+            Ocultar ítems completados
+        </label>
+    </div>
     
     <h2>Lista de Recogida Consolidada</h2>
     <table>
@@ -137,7 +95,7 @@
                 <th>Código Artículo</th>
                 <th>Descripción</th>
                 <th>Progreso</th>
-                <th>Acción</th>
+                <th style="text-align: center;">Acciones</th>
             </tr>
         </thead>
         <tbody>
@@ -154,17 +112,19 @@
                         </div>
                     </div>
                 </td>
-                <td style="text-align: center;">
+                <td style="text-align: center;" class="action-buttons">
                     <button class="incidencia-btn" data-codigo="{{ codigo }}" data-descripcion="{{ item.descripcion }}" data-solicitado="{{ item.solicitado }}">
                         Incidencia
                     </button>
+                    {% if current_user.role == 'admin' %}
+                    <button class="completar-btn" data-codigo="{{ codigo }}">Completar</button>
+                    {% endif %}
                 </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
 
-    <!-- Botón para finalizar lote -->
     <div style="text-align: center; margin-top: 2.5em;">
         <form action="{{ url_for('finalizar_lote', lote_id=lote.id) }}" method="POST">
             <button id="finalizar-btn" type="submit" class="finalizar-btn" {% if not picking_completo %}disabled{% endif %}>
@@ -174,7 +134,6 @@
     </div>
 </div>
 
-<!-- === ESTRUCTURA DEL MODAL PARA INCIDENCIAS (OCULTO) === -->
 <div id="modal-incidencia" class="modal-overlay">
     <div class="modal-content">
         <div class="modal-header">
@@ -196,7 +155,7 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="modal-cantidad-recogida">Cantidad que SÍ pudo recoger (si aplica)</label>
+                    <label for="modal-cantidad-recogida">Cantidad que SÍ pudo recoger</label>
                     <input type="number" id="modal-cantidad-recogida" name="cantidad_recogida" value="0" min="0">
                 </div>
                 <div class="form-group">
@@ -211,159 +170,111 @@
     </div>
 </div>
 
-<!-- ========= BLOQUE JAVASCRIPT ========= -->
+{% endblock %}
+
+
+{% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
 
-    // --- SECCIÓN DE AUDIO Y ELEMENTOS GLOBALES ---
+    // --- SECCIÓN DE ELEMENTOS GLOBALES ---
     const audioSuccess = new Audio("{{ url_for('static', filename='sounds/success.mp3') }}");
     const audioError = new Audio("{{ url_for('static', filename='sounds/error.mp3') }}");
+    const finalizarBtn = document.getElementById('finalizar-btn');
+    const toggleOcultar = document.getElementById('toggle-ocultar-completados');
     const scanForm = document.getElementById('scan-form');
     const scanInput = document.getElementById('scan-input');
     const feedbackDiv = document.getElementById('scan-feedback');
-    const finalizarBtn = document.getElementById('finalizar-btn');
+    const modal = document.getElementById('modal-incidencia');
+    const closeModalBtn = document.getElementById('modal-close');
+    const incidenciaForm = document.getElementById('form-incidencia');
 
-    // --- SECCIÓN DE LÓGICA DE ESCANEO ---
+    // --- LÓGICA DE ESCANEO ---
     scanForm.addEventListener('submit', function(event) {
         event.preventDefault(); 
         const codigo = scanInput.value.trim();
         if (!codigo) return;
-
         fetch("{{ url_for('api_escanear_item_lote', lote_id=lote.id) }}", {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ codigo_articulo: codigo }),
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                audioSuccess.play();
-                updateUI(data);
-                showFeedback(data.message, 'success');
-            } else {
-                audioError.play();
-                showFeedback(data.message, 'error');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            audioError.play();
-            showFeedback('Error de conexión con el servidor.', 'error');
-        })
-        .finally(() => {
-            scanInput.value = '';
-            scanInput.focus();
-        });
+        }).then(res => res.json()).then(data => {
+            if (data.success) { audioSuccess.play(); updateUI(data); showFeedback(data.message, 'success');
+            } else { audioError.play(); showFeedback(data.message, 'error'); }
+        }).catch(err => { console.error(err); showFeedback('Error de conexión.', 'error');
+        }).finally(() => { scanInput.value = ''; scanInput.focus(); });
     });
 
-    // --- SECCIÓN DE LÓGICA DE INCIDENCIAS ---
-    const modal = document.getElementById('modal-incidencia');
-    const closeModalBtn = document.getElementById('modal-close');
-    const incidenciaForm = document.getElementById('form-incidencia');
-    const allIncidenciaBtns = document.querySelectorAll('.incidencia-btn');
-
-    allIncidenciaBtns.forEach(btn => {
+    // --- LÓGICA DE INCIDENCIAS ---
+    document.querySelectorAll('.incidencia-btn').forEach(btn => {
         btn.addEventListener('click', function() {
-            const codigo = this.dataset.codigo;
-            const descripcion = this.dataset.descripcion;
-            const solicitado = this.dataset.solicitado;
-
-            document.getElementById('modal-item-info').textContent = `${codigo} - ${descripcion}`;
-            document.getElementById('modal-codigo-articulo').value = codigo;
-            document.getElementById('modal-cantidad-recogida').max = solicitado;
-            
+            document.getElementById('modal-item-info').textContent = `${this.dataset.codigo} - ${this.dataset.descripcion}`;
+            document.getElementById('modal-codigo-articulo').value = this.dataset.codigo;
+            document.getElementById('modal-cantidad-recogida').max = this.dataset.solicitado;
             modal.style.display = 'flex';
         });
     });
-
-    function closeModal() {
-        modal.style.display = 'none';
-        incidenciaForm.reset();
-    }
+    function closeModal() { modal.style.display = 'none'; incidenciaForm.reset(); }
     closeModalBtn.addEventListener('click', closeModal);
-    modal.addEventListener('click', function(event) {
-        if (event.target === modal) {
-            closeModal();
-        }
-    });
-
+    modal.addEventListener('click', (event) => { if (event.target === modal) closeModal(); });
     incidenciaForm.addEventListener('submit', function(event) {
         event.preventDefault();
-        
         const codigo = document.getElementById('modal-codigo-articulo').value;
-        const tipo = document.getElementById('modal-tipo-incidencia').value;
-        const nota = document.getElementById('modal-nota').value;
-        const cantidad = parseInt(document.getElementById('modal-cantidad-recogida').value, 10);
-
-        if (!tipo) {
-            alert('Por favor, seleccione un tipo de incidencia.');
-            return;
-        }
-
         const url = `/api/lote/{{ lote.id }}/item/${codigo}/reportar-incidencia`;
-
+        const formData = {
+            tipo_incidencia: document.getElementById('modal-tipo-incidencia').value,
+            nota: document.getElementById('modal-nota').value,
+            cantidad_recogida: parseInt(document.getElementById('modal-cantidad-recogida').value, 10)
+        };
+        if (!formData.tipo_incidencia) { alert('Seleccione un tipo de incidencia.'); return; }
         fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                tipo_incidencia: tipo,
-                nota: nota,
-                cantidad_recogida: cantidad
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData)
+        }).then(res => res.json()).then(data => {
             if (data.success) {
-                audioError.play(); // Sonido de error para llamar la atención
-                showFeedback('Incidencia reportada correctamente.', 'success');
-                
-                const itemRow = document.getElementById(`item-row-${codigo}`);
-                itemRow.classList.add('incidencia-reportada');
-                itemRow.dataset.incidencia = 'true';
-                
-                const btn = itemRow.querySelector('.incidencia-btn');
-                if (btn) btn.disabled = true;
-
-                // Actualizamos la UI con la cantidad parcial recogida
-                const progresoTexto = document.getElementById(`progreso-texto-${codigo}`);
-                const solicitadoTotal = itemRow.querySelector('.incidencia-btn').dataset.solicitado;
-                if (progresoTexto) {
-                    progresoTexto.textContent = `${cantidad} / ${solicitadoTotal}`;
-                }
-
-                const progresoBarra = document.getElementById(`progreso-barra-${codigo}`);
-                if (progresoBarra) {
-                    const porcentaje = solicitadoTotal > 0 ? (cantidad / solicitadoTotal) * 100 : 0;
-                    progresoBarra.style.width = `${porcentaje}%`;
-                    progresoBarra.textContent = `${Math.round(porcentaje)}%`;
-                }
-                
+                audioError.play(); showFeedback('Incidencia reportada.', 'success');
+                const row = document.getElementById(`item-row-${codigo}`);
+                row.classList.add('incidencia-reportada');
+                row.querySelector('.incidencia-btn').disabled = true;
+                row.querySelector('.completar-btn')?.setAttribute('disabled', true);
                 checkIfLoteIsComplete();
                 closeModal();
-            } else {
-                audioError.play();
-                alert(`Error: ${data.message}`);
-            }
-        })
-        .catch(err => {
-            audioError.play();
-            console.error(err);
-            alert('Error de conexión al reportar la incidencia.');
+            } else { audioError.play(); alert(`Error: ${data.message}`); }
+        }).catch(err => { console.error(err); alert('Error de conexión.'); });
+    });
+    
+    // --- LÓGICA PARA BOTÓN "COMPLETAR" DEL ADMIN ---
+    document.querySelectorAll('.completar-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const codigo = this.dataset.codigo;
+            if (!confirm(`¿Marcar el ítem ${codigo} como 100% recogido?`)) return;
+            const url = `/api/lote/{{ lote.id }}/codigo/${codigo}/completar`;
+            fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) { audioSuccess.play(); updateUI(data); showFeedback(data.message, 'success');
+                    } else { audioError.play(); showFeedback(data.message || 'Error', 'error'); }
+                }).catch(err => { console.error(err); showFeedback('Error de conexión.', 'error'); });
         });
     });
 
-    // --- SECCIÓN DE FUNCIONES AUXILIARES DE UI ---
+    // --- LÓGICA PARA CHECKBOX "OCULTAR COMPLETADOS" ---
+    toggleOcultar.addEventListener('change', function() {
+        document.body.classList.toggle('ocultar-completados', this.checked);
+    });
+
+    // --- FUNCIONES AUXILIARES DE UI ---
     function updateUI(data) {
-        const progresoTexto = document.getElementById(`progreso-texto-${data.codigo_articulo}`);
-        if (progresoTexto) {
-            progresoTexto.textContent = `${data.recogido} / ${data.solicitado}`;
+        const row = document.getElementById(`item-row-${data.codigo_articulo}`);
+        if (!row) return;
+        const texto = row.querySelector(`#progreso-texto-${data.codigo_articulo}`);
+        const barra = row.querySelector(`#progreso-barra-${data.codigo_articulo}`);
+        if (texto) texto.textContent = `${data.recogido} / ${data.solicitado}`;
+        if (barra) {
+            const porcentaje = data.solicitado > 0 ? (data.recogido / data.solicitado) * 100 : 100;
+            barra.style.width = `${porcentaje}%`;
+            barra.textContent = `${Math.round(porcentaje)}%`;
         }
-        const progresoBarra = document.getElementById(`progreso-barra-${data.codigo_articulo}`);
-        if (progresoBarra) {
-            const porcentaje = data.solicitado > 0 ? (data.recogido / data.solicitado) * 100 : 0;
-            progresoBarra.style.width = `${porcentaje}%`;
-            progresoBarra.textContent = `${Math.round(porcentaje)}%`;
-        }
+        row.classList.toggle('item-completado', data.recogido >= data.solicitado);
         checkIfLoteIsComplete();
     }
     
@@ -376,21 +287,27 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function checkIfLoteIsComplete() {
         let completo = true;
-        const todasLasFilas = document.querySelectorAll('.item-row');
-        if (todasLasFilas.length === 0) {
-            completo = false;
-        }
-        todasLasFilas.forEach(fila => {
-            if (fila.dataset.incidencia !== 'true') {
-                const barra = fila.querySelector('.progress');
-                if (barra.style.width !== '100%') {
-                    completo = false;
-                }
+        document.querySelectorAll('.item-row').forEach(row => {
+            if (!row.classList.contains('item-completado') && !row.classList.contains('incidencia-reportada')) {
+                completo = false;
             }
         });
         finalizarBtn.disabled = !completo;
     }
 
+    // --- INICIALIZACIÓN DE LA VISTA ---
+    function inicializarVista() {
+        document.querySelectorAll('.item-row').forEach(row => {
+            const texto = row.querySelector('[id^="progreso-texto-"]').textContent;
+            const [recogido, solicitado] = texto.split('/').map(n => parseInt(n.trim()));
+            if (recogido >= solicitado) {
+                row.classList.add('item-completado');
+            }
+        });
+        checkIfLoteIsComplete(); // Comprobar estado al cargar la página
+    }
+    
+    inicializarVista();
 });
 </script>
 {% endblock %}
