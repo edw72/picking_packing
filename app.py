@@ -837,32 +837,46 @@ def detalle_packing(orden_id):
 
     session_key = f'packing_{orden_id}'
 
-    # --- LÓGICA DE RESETEO FORZADO DE SESIÓN (GET) ---
+    # --- LÓGICA DE INICIALIZACIÓN DE SESIÓN (GET) - CORREGIDA Y FINAL ---
     if request.method == 'GET':
-        # Si la URL contiene ?reset=true, borramos la sesión vieja.
-        if request.args.get('reset') == 'true':
-            if session_key in session:
-                session.pop(session_key)
-                print(f"--- Sesión de packing para orden #{orden.id} reseteada forzosamente. ---")
+        if request.args.get('reset') == 'true' and session_key in session:
+            session.pop(session_key)
+            print(f"--- Sesión de packing para orden #{orden.id} reseteada forzosamente. ---")
         
-        # Ahora, procedemos con la inicialización inteligente
         if session_key not in session:
             print(f"--- Inicializando sesión de packing para orden #{orden.id} ---")
             initial_counts = {}
             for item in orden.items:
+                # --- LÓGICA CORREGIDA Y ESTRICTA ---
+                # SOLO precargamos si el código del ítem está en nuestra lista de servicios.
+                # Los artículos físicos SIEMPRE empezarán en 0 en el packing.
                 if item.codigo_articulo in CODIGOS_DE_SERVICIO:
                     initial_counts[item.codigo_articulo] = item.cantidad_solicitada
-                    print(f"  -> Precargando ÍTEM DE SERVICIO: {item.codigo_articulo}") 
+                    print(f"  -> Precargando ÍTEM DE SERVICIO: {item.codigo_articulo}")
             
             session[session_key] = initial_counts
 
     # --- LÓGICA DE ESCANEO (POST) ---
     if request.method == 'POST':
-        # Esta parte no necesita cambios, ya que opera sobre la sesión ya limpia
+        # ... (Tu lógica POST no necesita cambios) ...
         codigo_escaneado = request.form.get('codigo_articulo', '').strip()
         packing_scan_counts = session.get(session_key, {})
-        # ... (el resto de tu lógica POST se mantiene igual) ...
-        # ...
+        item_encontrado = next((item for item in orden.items if item.codigo_articulo == codigo_escaneado), None)
+        
+        if item_encontrado:
+            if item_encontrado.codigo_articulo in CODIGOS_DE_SERVICIO:
+                flash(f'El artículo {item_encontrado.codigo_articulo} es un servicio y no necesita ser escaneado.', 'warning')
+                return redirect(url_for('detalle_packing', orden_id=orden_id))
+
+            current_scan_count = packing_scan_counts.get(item_encontrado.codigo_articulo, 0)
+            if current_scan_count < item_encontrado.cantidad_solicitada:
+                packing_scan_counts[item_encontrado.codigo_articulo] = current_scan_count + 1
+                session[session_key] = packing_scan_counts
+            else:
+                flash(f'Ya se ha escaneado la cantidad completa para {codigo_escaneado}.', 'warning')
+        else:
+            flash(f'El artículo {codigo_escaneado} no pertenece a esta orden.', 'error')
+        
         return redirect(url_for('detalle_packing', orden_id=orden_id))
 
     # --- LÓGICA PARA MOSTRAR LA PÁGINA (GET) ---
@@ -930,6 +944,7 @@ def detalle_despacho(orden_id):
         transportista = request.form.get('transportista')
         # ... (resto de tu lógica para guardar transportista, tracking, etc.) ...
         orden.estado = 'DESPACHADO'
+        orden.fecha_despacho = datetime.datetime.utcnow()
         db.session.commit()
         
         # Importante: Limpiamos la clave de sesión después de despachar
@@ -945,84 +960,74 @@ def detalle_despacho(orden_id):
     return render_template('detalle_despacho.html', orden=orden, verificado=verificado)
 
 # --- RUTA PARA REPORTES Y BÚSQUEDA ---
+# En app.py, reemplaza esta función completa
+
 @app.route('/reportes', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def reportes_y_busqueda():
     orden_encontrada = None
-    stats = {
-        'tiempo_picking_avg': 'N/A',
-        'tiempo_packing_avg': 'N/A',
-        'tiempo_despacho_avg': 'N/A',
-        'ordenes_hoy': 0
-    }
-
-     # --- INICIO DE LA LÓGICA DE HISTORIAL ---
-    # Obtenemos el historial de la sesión; si no existe, creamos una lista vacía.
     historial_busqueda = session.get('historial_busqueda', [])
-    # --- FIN DE LA LÓGICA DE HISTORIAL ---
 
     if request.method == 'POST':
+        # ... (tu lógica de búsqueda POST no cambia) ...
         numero_pedido_buscado = request.form.get('numero_pedido', '').strip()
         if numero_pedido_buscado:
             orden_encontrada = Orden.query.filter(Orden.numero_pedido.ilike(f"%{numero_pedido_buscado}%")).first()
             if not orden_encontrada:
                 flash(f'No se encontró ninguna orden con el número "{numero_pedido_buscado}".', 'error')
             else:
-                # --- AÑADIR AL HISTORIAL SI LA BÚSQUEDA FUE EXITOSA ---
-                # 1. Si el pedido ya está en el historial, lo removemos para volver a añadirlo al principio.
                 if orden_encontrada.numero_pedido in historial_busqueda:
                     historial_busqueda.remove(orden_encontrada.numero_pedido)
-                
-                # 2. Añadimos el nuevo número de pedido al principio de la lista.
                 historial_busqueda.insert(0, orden_encontrada.numero_pedido)
-                
-                # 3. Limitamos el historial a los últimos 5 elementos.
                 session['historial_busqueda'] = historial_busqueda[:5]
-                # --- FIN DE AÑADIR AL HISTORIAL ---
 
-    # --- Cálculo de Estadísticas (se ejecuta siempre al cargar la página) ---
+    # --- CÁLCULO DE ESTADÍSTICAS OPTIMIZADO EN UNA SOLA CONSULTA ---
+    stats = {
+        'tiempo_picking_avg': 'N/A',
+        'tiempo_packing_avg': 'N/A',
+        'tiempo_ciclo_completo_avg': 'N/A',
+        'ordenes_hoy': 0
+    }
+
     try:
-        # 1. Tiempos promedio de Picking
-        tiempos_picking = [
-            o.fecha_fin_picking - o.fecha_inicio_picking for o in Orden.query.filter(
-                Orden.fecha_inicio_picking.isnot(None), 
-                Orden.fecha_fin_picking.isnot(None)
-            ).all()
-        ]
-        if tiempos_picking:
-            tiempo_total_picking = sum(tiempos_picking, datetime.timedelta())
-            stats['tiempo_picking_avg'] = str(tiempo_total_picking / len(tiempos_picking)).split('.')[0] # Formato H:MM:SS
+        # Definir expresiones de diferencia de tiempo compatibles con la BD
+        dialect_name = db.engine.dialect.name
+        if dialect_name == 'postgresql':
+            diff_picking = func.extract('epoch', Orden.fecha_fin_picking) - func.extract('epoch', Orden.fecha_inicio_picking)
+            diff_packing = func.extract('epoch', Orden.fecha_fin_packing) - func.extract('epoch', Orden.fecha_fin_picking)
+            diff_ciclo_completo = func.extract('epoch', Orden.fecha_despacho) - func.extract('epoch', Orden.fecha_creacion)
+        else: # SQLite
+            diff_picking = func.strftime('%s', Orden.fecha_fin_picking) - func.strftime('%s', Orden.fecha_inicio_picking)
+            diff_packing = func.strftime('%s', Orden.fecha_fin_packing) - func.strftime('%s', Orden.fecha_fin_picking)
+            diff_ciclo_completo = func.strftime('%s', Orden.fecha_despacho) - func.strftime('%s', Orden.fecha_creacion)
 
-        # 2. Tiempos promedio de Packing
-        tiempos_packing = [
-            o.fecha_fin_packing - o.fecha_fin_picking for o in Orden.query.filter(
-                Orden.fecha_fin_picking.isnot(None),
-                Orden.fecha_fin_packing.isnot(None)
-            ).all()
-        ]
-        if tiempos_packing:
-            tiempo_total_packing = sum(tiempos_packing, datetime.timedelta())
-            stats['tiempo_packing_avg'] = str(tiempo_total_packing / len(tiempos_packing)).split('.')[0]
-
-        # 3. Tiempos promedio "Puerta a Puerta" (Creación -> Despacho)
-        tiempos_ciclo_completo = [
-            o.fecha_despacho - o.fecha_creacion for o in Orden.query.filter(
-                Orden.fecha_creacion.isnot(None),
-                Orden.fecha_despacho.isnot(None)
-            ).all()
-        ]
-        if tiempos_ciclo_completo:
-            tiempo_total_ciclo = sum(tiempos_ciclo_completo, datetime.timedelta())
-            stats['tiempo_ciclo_completo_avg'] = str(tiempo_total_ciclo / len(tiempos_ciclo_completo)).split('.')[0]
-
-        # 4. Órdenes creadas hoy
+        # Definir el rango para "órdenes de hoy"
         hoy_inicio = datetime.datetime.combine(datetime.date.today(), datetime.time.min)
         hoy_fin = datetime.datetime.combine(datetime.date.today(), datetime.time.max)
-        stats['ordenes_hoy'] = Orden.query.filter(Orden.fecha_creacion.between(hoy_inicio, hoy_fin)).count()
+
+        # Ejecutamos UNA SOLA consulta que calcula todo
+        resultado_stats = db.session.query(
+            func.avg(diff_picking),
+            func.avg(diff_packing),
+            func.avg(diff_ciclo_completo),
+            func.count(Orden.id).filter(Orden.fecha_creacion.between(hoy_inicio, hoy_fin))
+        ).one()
+
+        # Desempaquetamos los resultados y los formateamos
+        avg_pick_s, avg_pack_s, avg_ciclo_s, ordenes_hoy = resultado_stats
+        
+        if avg_pick_s is not None:
+            stats['tiempo_picking_avg'] = str(timedelta(seconds=int(avg_pick_s)))
+        if avg_pack_s is not None:
+            stats['tiempo_packing_avg'] = str(timedelta(seconds=int(avg_pack_s)))
+        if avg_ciclo_s is not None:
+            stats['tiempo_ciclo_completo_avg'] = str(timedelta(seconds=int(avg_ciclo_s)))
+        
+        stats['ordenes_hoy'] = ordenes_hoy or 0
 
     except Exception as e:
-        print(f"Error calculando estadísticas: {e}")
+        print(f"Error calculando estadísticas del dashboard: {e}")
         flash('Ocurrió un error al calcular las estadísticas.', 'error')
 
     return render_template('reportes.html', stats=stats, orden=orden_encontrada, historial=historial_busqueda)
@@ -1350,6 +1355,37 @@ def api_completar_codigo_picking(lote_id, codigo_articulo):
         'recogido': total_solicitado_en_lote, # Ahora lo recogido es igual a lo solicitado
         'solicitado': total_solicitado_en_lote
     })
+    
+@app.route('/api/packing/item/<int:item_id>/completar', methods=['POST'])
+@login_required
+@admin_required
+def api_completar_item_packing(item_id):
+    """
+    Permite a un admin marcar un ítem como completamente verificado
+    en la sesión de packing.
+    """
+    item = ItemOrden.query.get_or_404(item_id)
+    orden = item.orden
+    session_key = f'packing_{orden.id}'
+    
+    # Obtenemos el diccionario de conteo de la sesión actual
+    packing_scan_counts = session.get(session_key, {})
+    
+    # Establecemos el conteo para este ítem a su cantidad total solicitada
+    packing_scan_counts[item.codigo_articulo] = item.cantidad_solicitada
+    
+    # Guardamos el diccionario actualizado de vuelta en la sesión
+    session[session_key] = packing_scan_counts
+    
+    print(f"Admin completó manualmente el ítem {item.codigo_articulo} para la orden #{orden.id}")
+
+    return jsonify({
+        'success': True,
+        'message': f'Ítem {item.codigo_articulo} completado manualmente.',
+        'codigo_articulo': item.codigo_articulo,
+        'escaneado': item.cantidad_solicitada,
+        'solicitado': item.cantidad_solicitada
+    })    
 
 
 
