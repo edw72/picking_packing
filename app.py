@@ -1,4 +1,5 @@
 # 1. IMPORTACIONES
+from flask_migrate import Migrate
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask import Flask, request, jsonify, render_template, redirect, url_for, flash, session
@@ -34,6 +35,8 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'una-clave-secreta-muy-d
 app.config['API_SECRET_KEY'] = os.environ.get('API_SECRET_KEY', 'MI_CLAVE_SUPER_SECRETA_12345')
 
 db = SQLAlchemy(app)
+
+migrate = Migrate(app, db)
 
 # --- CONFIGURACIÓN DE FLASK-LOGIN ---
 login_manager = LoginManager()
