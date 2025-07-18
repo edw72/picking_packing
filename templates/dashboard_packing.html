@@ -101,7 +101,10 @@
                     <span class="estado estado-{{ orden.estado }}">{{ orden.estado.replace('_', ' ') }}</span>
                 </td>
                 <td>
-                    <a href="{{ url_for('detalle_packing', orden_id=orden.id, reset='true') }}" class="action-link">Verificar Orden</a>
+                    <!-- === INICIO DEL CAMBIO CLAVE === -->
+                    <!-- Se ha eliminado el parámetro reset='true' de este enlace -->
+                    <a href="{{ url_for('detalle_packing', orden_id=orden.id) }}" class="action-link">Verificar Orden</a>
+                    <!-- === FIN DEL CAMBIO CLAVE === -->
                 </td>
             </tr>
             {% else %}
