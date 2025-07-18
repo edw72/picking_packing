@@ -1,9 +1,7 @@
 # 1. IMPORTACIONES
-from flask_migrate import Migrate
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask import Flask, request, jsonify, render_template, redirect, url_for, flash, session
-from flask_weasyprint import HTML, render_pdf
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import or_
 import datetime
@@ -14,36 +12,29 @@ from sqlalchemy import func
 from datetime import timedelta
 import os
 import json
-# --- IMPORTACIONES PARA QR (Paso 4 del plan) ---
 import qrcode
 import io
 from flask import send_file
-# -------------------------------------------------
+from flask_migrate import Migrate # Importar Migrate
+from flask_weasyprint import HTML, render_pdf
 
 
 # 2. CONFIGURACIÓN DE LA APP
 app = Flask(__name__)
-'''app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///picking_app.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-# Es importante tener una secret_key para que los mensajes 'flash' funcionen
-app.config['SECRET_KEY'] = 'una-clave-secreta-muy-dificil-de-adivinar' 
-app.config['API_SECRET_KEY'] = 'MI_CLAVE_SUPER_SECRETA_12345'''
-
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///picking_app.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'una-clave-secreta-muy-dificil-de-adivinar')
 app.config['API_SECRET_KEY'] = os.environ.get('API_SECRET_KEY', 'MI_CLAVE_SUPER_SECRETA_12345')
 
 db = SQLAlchemy(app)
-
-migrate = Migrate(app, db)
+migrate = Migrate(app, db) # Inicializar Migrate
 
 # --- CONFIGURACIÓN DE FLASK-LOGIN ---
 login_manager = LoginManager()
 login_manager.init_app(app)
-login_manager.login_view = 'login' # La ruta a la que se redirige si un usuario no logueado intenta acceder a una página protegida
+login_manager.login_view = 'login'
 login_manager.login_message = "Por favor, inicie sesión para acceder a esta página."
-login_manager.login_message_category = "error" # Categoría para mensajes flash
+login_manager.login_message_category = "error"
 
 def admin_required(f):
     @wraps(f)
@@ -61,96 +52,53 @@ def load_user(user_id):
 # --- FILTRO PERSONALIZADO PARA FECHAS ---
 @app.template_filter('localtime')
 def to_localtime_filter(utc_datetime):
-    """
-    Convierte una fecha y hora de UTC a la zona horaria de Costa Rica.
-    Uso en Jinja2 (HTML): {{ una_fecha_utc | localtime }}
-    """
-    if not utc_datetime:
-        return ""
-    
+    if not utc_datetime: return ""
     local_tz = pytz.timezone('America/Costa_Rica')
     local_dt = utc_datetime.replace(tzinfo=pytz.utc).astimezone(local_tz)
     return local_dt.strftime('%d-%m-%Y %H:%M:%S')
-
-
-
 
 # 3. MODELOS DE LA BASE DE DATOS
 class LotePicking(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     fecha_creacion = db.Column(db.DateTime, nullable=False, default=datetime.datetime.utcnow)
-    estado = db.Column(db.String(20), nullable=False, default='ACTIVO') # ACTIVO, COMPLETADO
+    estado = db.Column(db.String(20), nullable=False, default='ACTIVO')
     ordenes = db.relationship('Orden', backref='lote', lazy=True)
-
-    # --- NUEVO CAMPO DE ASIGNACIÓN ---
-    # Le decimos a la BD que si se borra el usuario, ponga este campo en NULL.
     operario_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
-    # ...
-    # Creamos una relación para poder acceder al objeto User completo desde el lote.
-    # Ej: mi_lote.operario.username
     operario = db.relationship('User', backref='lotes_asignados')
-    # --- FIN DE NUEVO CAMPO ---
 
 class Orden(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     numero_pedido = db.Column(db.String(50), unique=True, nullable=False)
     cliente_nombre = db.Column(db.String(200), nullable=False)
     cliente_direccion = db.Column(db.String(300), nullable=True)
-    
-     # Estados posibles: PENDIENTE, EN_PICKING, CON_INCIDENCIA, EMPACADO, LISTO_PARA_DESPACHO, DESPACHADO, CANCELADA
-    estado = db.Column(db.String(20), nullable=False, default='PENDIENTE')
-    
+    estado = db.Column(db.String(30), nullable=False, default='PENDIENTE') # Ampliado para nuevos estados
     fecha_creacion = db.Column(db.DateTime, nullable=False, default=datetime.datetime.utcnow)
     lote_id = db.Column(db.Integer, db.ForeignKey('lote_picking.id'), nullable=True)
     items = db.relationship('ItemOrden', backref='orden', lazy=True, cascade="all, delete-orphan")
-    
-    # --- TIMESTAMPS DE PROCESOS ---
-    fecha_creacion = db.Column(db.DateTime, nullable=False, default=datetime.datetime.utcnow)
-    fecha_inicio_picking = db.Column(db.DateTime, nullable=True) # Cuando se asigna a un lote
-    fecha_fin_picking = db.Column(db.DateTime, nullable=True)    # Cuando el lote se completa
-    fecha_fin_packing = db.Column(db.DateTime, nullable=True)    # Cuando se finaliza el packing
-    fecha_despacho = db.Column(db.DateTime, nullable=True)       # Cuando se despacha
-    # --- FIN DE TIMESTAMPS ---
-    
-     # --- NUEVO CAMPO PARA TRAZABILIDAD DE PACKING ---
+    fecha_inicio_picking = db.Column(db.DateTime, nullable=True)
+    fecha_fin_picking = db.Column(db.DateTime, nullable=True)
+    fecha_fin_packing = db.Column(db.DateTime, nullable=True)
+    fecha_despacho = db.Column(db.DateTime, nullable=True)
     packer_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
     packer = db.relationship('User', foreign_keys=[packer_id])
-    # --- FIN DE NUEVO CAMPO ---
-    
-    # --- NUEVO CAMPO PARA GESTIÓN DE CANCELACIÓN ---
-    # Lo usaremos para que el operario pueda "marcar como leída" la cancelación.
     devolucion_confirmada = db.Column(db.Boolean, default=False, nullable=False)
-    # --- FIN DE NUEVO CAMPO ---
+    bultos = db.relationship('Bulto', backref='orden', cascade="all, delete-orphan")
     
-      # --- NUEVOS CAMPOS PARA DESPACHO ---
-    transportista = db.Column(db.String(100), nullable=True)
-    numero_seguimiento = db.Column(db.String(100), nullable=True)
-    fecha_despacho = db.Column(db.DateTime, nullable=True)
-    # --- FIN DE NUEVOS CAMPOS ---
+    # --- CAMBIOS PARA HOJAS DE RUTA ---
+    hoja_de_ruta_id = db.Column(db.Integer, db.ForeignKey('hoja_de_ruta.id'), nullable=True)
 
     def __repr__(self):
         return f'<Orden {self.numero_pedido}>'
 
-# Añadimos el nuevo modelo User
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
-    role = db.Column(db.String(20), nullable=False, default='operario') # Roles: operario, admin
-
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
-
-    def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
-
-    def __repr__(self):
-        return f'<User {self.username}>'
-
-  
-
-    def __repr__(self):
-        return f'<Orden {self.numero_pedido}>'
+    # --- ROL DE CONDUCTOR AÑADIDO ---
+    role = db.Column(db.String(20), nullable=False, default='operario') # Roles: operario, admin, conductor
+    def set_password(self, password): self.password_hash = generate_password_hash(password)
+    def check_password(self, password): return check_password_hash(self.password_hash, password)
+    def __repr__(self): return f'<User {self.username}>'
 
 class ItemOrden(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -159,82 +107,77 @@ class ItemOrden(db.Model):
     descripcion_articulo = db.Column(db.String(300), nullable=False)
     cantidad_solicitada = db.Column(db.Integer, nullable=False)
     cantidad_recogida = db.Column(db.Integer, nullable=False, default=0)
-    
-     # === INICIO: NUEVA COLUMNA PARA PERSISTENCIA EN PACKING ===
     cantidad_empacada = db.Column(db.Integer, nullable=False, default=0)
-    # === FIN: NUEVA COLUMNA ===
-
-    # --- NUEVOS CAMPOS PARA INCIDENCIAS ---
     tiene_incidencia = db.Column(db.Boolean, default=False, nullable=False)
-    tipo_incidencia = db.Column(db.String(50), nullable=True) # Ej: 'STOCK_CERO', 'DAÑADO', 'UBICACION_ERRONEA'
+    tipo_incidencia = db.Column(db.String(50), nullable=True)
     nota_incidencia = db.Column(db.Text, nullable=True)
-    # --- FIN DE NUEVOS CAMPOS ---
-
-    def __repr__(self):
-        return f'<Item {self.codigo_articulo} de Orden {self.orden_id}>'
-    
-# En app.py, dentro de la sección 3. MODELOS DE LA BASE DE DATOS
+    def __repr__(self): return f'<Item {self.codigo_articulo} de Orden {self.orden_id}>'
 
 class IncidenciaHistorial(db.Model):
-    __tablename__ = 'incidencia_historial' # Es una buena práctica definir explícitamente el nombre de la tabla
-
+    __tablename__ = 'incidencia_historial'
     id = db.Column(db.Integer, primary_key=True)
-    
-    # --- Información del Momento del Reporte ---
     fecha_reporte = db.Column(db.DateTime, nullable=False, default=datetime.datetime.utcnow)
     tipo_incidencia = db.Column(db.String(50), nullable=False)
     nota_incidencia = db.Column(db.Text, nullable=True)
-    
-    # Guardamos una "foto" de las cantidades en el momento de la incidencia
     cantidad_solicitada_original = db.Column(db.Integer, nullable=False)
     cantidad_recogida_reportada = db.Column(db.Integer, nullable=False)
-    
-    # --- Relaciones para saber QUÉ y QUIÉN Reportó ---
-    # Ligado al ItemOrden específico que tuvo el problema
     item_orden_id = db.Column(db.Integer, db.ForeignKey('item_orden.id', ondelete='CASCADE'), nullable=False)
-    
-    # Ligado al Usuario que reportó la incidencia
     reportado_por_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
-    
-    # Propiedades de relación para acceder a los objetos completos
     item_orden = db.relationship('ItemOrden', backref=db.backref('historial_incidencias', cascade="all, delete-orphan"))
     reportado_por = db.relationship('User', foreign_keys=[reportado_por_id])
-    
-    # --- Información de la Resolución por parte del Admin/Supervisor ---
-    estado_resolucion = db.Column(db.String(20), nullable=False, default='PENDIENTE') # Estados: PENDIENTE, RESUELTA
+    estado_resolucion = db.Column(db.String(20), nullable=False, default='PENDIENTE')
     fecha_resolucion = db.Column(db.DateTime, nullable=True)
-    
-    # Ligado al Usuario que resolvió la incidencia
     resuelta_por_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
     nota_resolucion = db.Column(db.Text, nullable=True)
-    
-    # Propiedad de relación para acceder al objeto User que resolvió
     resuelta_por = db.relationship('User', foreign_keys=[resuelta_por_id])
+    def __repr__(self): return f'<Incidencia #{self.id} para ItemOrden {self.item_orden_id}>'
 
-    def __repr__(self):
-        return f'<Incidencia #{self.id} para ItemOrden {self.item_orden_id}>'
-
-# === INICIO: NUEVO MODELO PARA BULTOS (PASO 1) ===
 class Bulto(db.Model):
     __tablename__ = 'bulto'
     id = db.Column(db.Integer, primary_key=True)
-    
-    # Relación con la orden a la que pertenece
     orden_id = db.Column(db.Integer, db.ForeignKey('orden.id'), nullable=False)
-    orden = db.relationship('Orden', backref=db.backref('bultos', cascade="all, delete-orphan"))
-
-    # Tipo de bulto: 'CAJA', 'BOLSA', 'PAQUETE'
     tipo = db.Column(db.String(20), nullable=False)
-    
-    # Identificador único que se usará para el código QR/etiqueta.
-    # Ej: 'FAC-1050-1', 'FAC-1050-2'
     identificador_unico = db.Column(db.String(100), unique=True, nullable=False)
-
     fecha_creacion = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    def __repr__(self): return f'<Bulto {self.identificador_unico} para Orden {self.orden_id}>'
 
-    def __repr__(self):
-        return f'<Bulto {self.identificador_unico} para Orden {self.orden_id}>'
-# === FIN: NUEVO MODELO PARA BULTOS ===
+class Destino(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(200), unique=True, nullable=False)
+    def __repr__(self): return f'<Destino {self.nombre}>'
+
+class HojaDeRuta(db.Model):
+    __tablename__ = 'hoja_de_ruta'
+    id = db.Column(db.Integer, primary_key=True)
+    fecha_creacion = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    conductor_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    conductor = db.relationship('User', backref='hojas_de_ruta')
+    estado = db.Column(db.String(20), nullable=False, default='EN_PREPARACION')
+    gastos_asignados = db.Column(db.Float, nullable=False, default=0.0)
+    ordenes = db.relationship('Orden', backref='hoja_de_ruta', lazy='dynamic')
+    transacciones = db.relationship('Transaccion', backref='hoja_de_ruta', lazy='dynamic', cascade="all, delete-orphan")
+    gastos_viaje = db.relationship('GastoViaje', backref='hoja_de_ruta', lazy='dynamic', cascade="all, delete-orphan")
+    def __repr__(self): return f'<HojaDeRuta #{self.id} de {self.conductor.username}>'
+
+class Transaccion(db.Model):
+    __tablename__ = 'transaccion'
+    id = db.Column(db.Integer, primary_key=True)
+    hoja_de_ruta_id = db.Column(db.Integer, db.ForeignKey('hoja_de_ruta.id'), nullable=False)
+    orden_id = db.Column(db.Integer, db.ForeignKey('orden.id'), nullable=False)
+    orden = db.relationship('Orden')
+    monto_recibido = db.Column(db.Float, nullable=False)
+    nota = db.Column(db.Text, nullable=True)
+    fecha_registro = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    def __repr__(self): return f'<Transaccion de {self.monto_recibido} para Orden #{self.orden_id}>'
+
+class GastoViaje(db.Model):
+    __tablename__ = 'gasto_viaje'
+    id = db.Column(db.Integer, primary_key=True)
+    hoja_de_ruta_id = db.Column(db.Integer, db.ForeignKey('hoja_de_ruta.id'), nullable=False)
+    monto_gastado = db.Column(db.Float, nullable=False)
+    descripcion = db.Column(db.Text, nullable=False)
+    fecha_registro = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    def __repr__(self): return f'<Gasto de {self.monto_gastado} en HojaDeRuta #{self.hoja_de_ruta_id}>'
 
 
 # 4. RUTAS DE LA APLICACIÓN
@@ -1456,6 +1399,5 @@ def generar_pdf_etiquetas(orden_id):
 
 # 5. PUNTO DE ENTRADA
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
+    
     app.run(debug=True, port=5000)
