@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Etiquetas para Pedido #{{ orden.numero_pedido }}</title>
+    <style>
+        body { font-family: sans-serif; background-color: #f4f4f9; }
+        .controls { text-align: center; padding: 2rem; }
+        .controls a {
+            padding: 12px 25px;
+            font-size: 18px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            color: white;
+            margin: 0 10px;
+        }
+        .print-btn { background-color: #007bff; }
+        .back-btn { background-color: #6c757d; }
+        .preview-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+            padding: 20px;
+        }
+        .etiqueta-preview {
+            width: 400px; /* Ancho fijo para la previsualización */
+            height: 200px; /* Alto fijo para la previsualización */
+            border: 1px solid #ccc;
+            background-color: white;
+            padding: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            transform: scale(0.8); /* Hacerla un poco más pequeña */
+            transform-origin: top center;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+         .etiqueta-header h1 { font-size: 1.2rem; margin: 0; }
+        /* Simplificamos los estilos de la previsualización */
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <a href="{{ url_for('dashboard_packing') }}" class="back-btn">Volver a Packing</a>
+        <!-- ESTE BOTÓN AHORA APUNTA A LA RUTA DEL PDF -->
+        <a href="{{ url_for('generar_pdf_etiquetas', orden_id=orden.id) }}" class="print-btn" target="_blank">
+            Generar PDF e Imprimir
+        </a>
+    </div>
+
+    <h2 style="text-align: center;">Vista Previa de Etiquetas</h2>
+    <div class="preview-container">
+        {% for bulto in orden.bultos %}
+            <div class="etiqueta-preview">
+                <!-- Contenido simplificado para la vista previa -->
+                 <div class="etiqueta-header">
+                    <h1>{{ orden.cliente_nombre }}</h1>
+                    <p>Pedido #{{ orden.numero_pedido }}</p>
+                </div>
+                <div style="text-align:center;">
+                    <p><strong>{{ bulto.tipo }} {{ loop.index }} de {{ orden.bultos|length }}</strong></p>
+                    <p><small>ID: {{ bulto.identificador_unico }}</small></p>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</body>
+</html>

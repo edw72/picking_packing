@@ -2,6 +2,7 @@
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask import Flask, request, jsonify, render_template, redirect, url_for, flash, session
+from flask_weasyprint import HTML, render_pdf
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import or_
 import datetime
@@ -12,9 +13,11 @@ from sqlalchemy import func
 from datetime import timedelta
 import os
 import json
-
-
-
+# --- IMPORTACIONES PARA QR (Paso 4 del plan) ---
+import qrcode
+import io
+from flask import send_file
+# -------------------------------------------------
 
 
 # 2. CONFIGURACIÓN DE LA APP
@@ -115,6 +118,12 @@ class Orden(db.Model):
     # Lo usaremos para que el operario pueda "marcar como leída" la cancelación.
     devolucion_confirmada = db.Column(db.Boolean, default=False, nullable=False)
     # --- FIN DE NUEVO CAMPO ---
+    
+      # --- NUEVOS CAMPOS PARA DESPACHO ---
+    transportista = db.Column(db.String(100), nullable=True)
+    numero_seguimiento = db.Column(db.String(100), nullable=True)
+    fecha_despacho = db.Column(db.DateTime, nullable=True)
+    # --- FIN DE NUEVOS CAMPOS ---
 
     def __repr__(self):
         return f'<Orden {self.numero_pedido}>'
@@ -135,11 +144,7 @@ class User(UserMixin, db.Model):
     def __repr__(self):
         return f'<User {self.username}>'
 
-    # --- NUEVOS CAMPOS PARA DESPACHO ---
-    transportista = db.Column(db.String(100), nullable=True)
-    numero_seguimiento = db.Column(db.String(100), nullable=True)
-    fecha_despacho = db.Column(db.DateTime, nullable=True)
-    # --- FIN DE NUEVOS CAMPOS ---
+  
 
     def __repr__(self):
         return f'<Orden {self.numero_pedido}>'
@@ -151,6 +156,10 @@ class ItemOrden(db.Model):
     descripcion_articulo = db.Column(db.String(300), nullable=False)
     cantidad_solicitada = db.Column(db.Integer, nullable=False)
     cantidad_recogida = db.Column(db.Integer, nullable=False, default=0)
+    
+     # === INICIO: NUEVA COLUMNA PARA PERSISTENCIA EN PACKING ===
+    cantidad_empacada = db.Column(db.Integer, nullable=False, default=0)
+    # === FIN: NUEVA COLUMNA ===
 
     # --- NUEVOS CAMPOS PARA INCIDENCIAS ---
     tiene_incidencia = db.Column(db.Boolean, default=False, nullable=False)
@@ -202,13 +211,27 @@ class IncidenciaHistorial(db.Model):
     def __repr__(self):
         return f'<Incidencia #{self.id} para ItemOrden {self.item_orden_id}>'
 
+# === INICIO: NUEVO MODELO PARA BULTOS (PASO 1) ===
+class Bulto(db.Model):
+    __tablename__ = 'bulto'
+    id = db.Column(db.Integer, primary_key=True)
+    
+    # Relación con la orden a la que pertenece
+    orden_id = db.Column(db.Integer, db.ForeignKey('orden.id'), nullable=False)
+    orden = db.relationship('Orden', backref=db.backref('bultos', cascade="all, delete-orphan"))
 
+    # Tipo de bulto: 'CAJA', 'BOLSA', 'PAQUETE'
+    tipo = db.Column(db.String(20), nullable=False)
+    
+    # Identificador único que se usará para el código QR/etiqueta.
+    # Ej: 'FAC-1050-1', 'FAC-1050-2'
+    identificador_unico = db.Column(db.String(100), unique=True, nullable=False)
 
+    fecha_creacion = db.Column(db.DateTime, default=datetime.datetime.utcnow)
 
-
-
-
-
+    def __repr__(self):
+        return f'<Bulto {self.identificador_unico} para Orden {self.orden_id}>'
+# === FIN: NUEVO MODELO PARA BULTOS ===
 
 
 # 4. RUTAS DE LA APLICACIÓN
@@ -564,30 +587,26 @@ def tomar_lote(lote_id):
 @app.route('/api/packing/<int:orden_id>/escanear', methods=['POST'])
 @login_required
 def api_escanear_item_packing(orden_id):
+    # Ya no usamos la sesión. Ahora es la BD.
     orden = Orden.query.get_or_404(orden_id)
     data = request.get_json()
     codigo_escaneado = data.get('codigo_articulo', '').strip()
-    
-    # El conteo de packing sigue viviendo en la sesión
-    session_key = f'packing_{orden_id}'
-    packing_scan_counts = session.get(session_key, {})
 
     item_encontrado = next((item for item in orden.items if item.codigo_articulo == codigo_escaneado), None)
 
     if not item_encontrado:
         return jsonify({'success': False, 'message': f'El artículo {codigo_escaneado} no pertenece a esta orden.'}), 404
 
-    current_scan_count = packing_scan_counts.get(item_encontrado.codigo_articulo, 0)
-    
-    if current_scan_count < item_encontrado.cantidad_solicitada:
-        packing_scan_counts[item_encontrado.codigo_articulo] = current_scan_count + 1
-        session[session_key] = packing_scan_counts # Guardar en la sesión
+    # Verificamos contra la base de datos
+    if item_encontrado.cantidad_empacada < item_encontrado.cantidad_solicitada:
+        item_encontrado.cantidad_empacada += 1
+        db.session.commit()
         
         return jsonify({
             'success': True,
             'message': 'Artículo verificado.',
             'codigo_articulo': item_encontrado.codigo_articulo,
-            'escaneado': current_scan_count + 1,
+            'escaneado': item_encontrado.cantidad_empacada, # Devolvemos el nuevo total desde la BD
             'solicitado': item_encontrado.cantidad_solicitada
         })
     else:
@@ -827,7 +846,7 @@ def crear_orden_desde_factura():
         return jsonify({'error': f'Ocurrió un error en el servidor: {str(e)}'}), 500
 
 
-@app.route('/packing/<int:orden_id>', methods=['GET', 'POST'])
+@app.route('/packing/<int:orden_id>', methods=['GET']) # Ya no necesitamos POST aquí
 @login_required
 def detalle_packing(orden_id):
     orden = Orden.query.get_or_404(orden_id)
@@ -835,87 +854,97 @@ def detalle_packing(orden_id):
         flash('Esta orden no está lista para packing.', 'error')
         return redirect(url_for('dashboard_packing'))
 
-    session_key = f'packing_{orden_id}'
+    # Ya no necesitamos manejar la sesión. La vista leerá el estado
+    # directamente desde la base de datos.
+    # Al entrar a la pantalla de packing, podríamos querer resetear el conteo,
+    # por si alguien la dejó a medias y quiere empezar de nuevo.
+    if request.args.get('reset') == 'true':
+        for item in orden.items:
+            # Solo reseteamos los items físicos, no los de servicio
+            if item.codigo_articulo not in CODIGOS_DE_SERVICIO:
+                item.cantidad_empacada = 0
+        db.session.commit()
+        flash('Se ha reiniciado el conteo de packing para esta orden.', 'info')
+        return redirect(url_for('detalle_packing', orden_id=orden.id))
 
-    # --- LÓGICA DE INICIALIZACIÓN DE SESIÓN (GET) - CORREGIDA Y FINAL ---
-    if request.method == 'GET':
-        if request.args.get('reset') == 'true' and session_key in session:
-            session.pop(session_key)
-            print(f"--- Sesión de packing para orden #{orden.id} reseteada forzosamente. ---")
-        
-        if session_key not in session:
-            print(f"--- Inicializando sesión de packing para orden #{orden.id} ---")
-            initial_counts = {}
-            for item in orden.items:
-                # --- LÓGICA CORREGIDA Y ESTRICTA ---
-                # SOLO precargamos si el código del ítem está en nuestra lista de servicios.
-                # Los artículos físicos SIEMPRE empezarán en 0 en el packing.
-                if item.codigo_articulo in CODIGOS_DE_SERVICIO:
-                    initial_counts[item.codigo_articulo] = item.cantidad_solicitada
-                    print(f"  -> Precargando ÍTEM DE SERVICIO: {item.codigo_articulo}")
-            
-            session[session_key] = initial_counts
-
-    # --- LÓGICA DE ESCANEO (POST) ---
-    if request.method == 'POST':
-        # ... (Tu lógica POST no necesita cambios) ...
-        codigo_escaneado = request.form.get('codigo_articulo', '').strip()
-        packing_scan_counts = session.get(session_key, {})
-        item_encontrado = next((item for item in orden.items if item.codigo_articulo == codigo_escaneado), None)
-        
-        if item_encontrado:
-            if item_encontrado.codigo_articulo in CODIGOS_DE_SERVICIO:
-                flash(f'El artículo {item_encontrado.codigo_articulo} es un servicio y no necesita ser escaneado.', 'warning')
-                return redirect(url_for('detalle_packing', orden_id=orden_id))
-
-            current_scan_count = packing_scan_counts.get(item_encontrado.codigo_articulo, 0)
-            if current_scan_count < item_encontrado.cantidad_solicitada:
-                packing_scan_counts[item_encontrado.codigo_articulo] = current_scan_count + 1
-                session[session_key] = packing_scan_counts
-            else:
-                flash(f'Ya se ha escaneado la cantidad completa para {codigo_escaneado}.', 'warning')
-        else:
-            flash(f'El artículo {codigo_escaneado} no pertenece a esta orden.', 'error')
-        
-        return redirect(url_for('detalle_packing', orden_id=orden_id))
-
-    # --- LÓGICA PARA MOSTRAR LA PÁGINA (GET) ---
-    packing_scan_counts = session.get(session_key, {})
-    
-    packing_completo = True
-    for item in orden.items:
-        if packing_scan_counts.get(item.codigo_articulo, 0) != item.cantidad_solicitada:
-            packing_completo = False
-            break
-
-    return render_template('detalle_packing.html', orden=orden, packing_counts=packing_scan_counts, packing_completo=packing_completo)
+    return render_template('detalle_packing.html', orden=orden)
 
 
-#---------------------------
-
+# En app.py, esta DEBE ser tu nueva función finalizar_packing
 
 @app.route('/packing/<int:orden_id>/finalizar', methods=['POST'])
 @login_required
 def finalizar_packing(orden_id):
     orden = Orden.query.get_or_404(orden_id)
+    if orden.estado != 'EMPACADO':
+        flash('Esta orden no está en el estado correcto para finalizar el packing.', 'error')
+        return redirect(url_for('dashboard_packing'))
+
+    try:
+        num_cajas = int(request.form.get('cantidad_cajas', 0))
+        num_bolsas = int(request.form.get('cantidad_bolsas', 0))
+        num_paquetes = int(request.form.get('cantidad_paquetes', 0))
+    except (ValueError, TypeError):
+        flash('Las cantidades deben ser números válidos.', 'error')
+        return redirect(url_for('detalle_packing', orden_id=orden_id))
+
+    if num_cajas + num_bolsas + num_paquetes == 0:
+        flash('Debe especificar al menos un bulto (caja, bolsa o paquete).', 'error')
+        return redirect(url_for('detalle_packing', orden_id=orden_id))
+
+    bulto_counter = 1
+    for _ in range(num_cajas):
+        nuevo_bulto = Bulto(orden_id=orden.id, tipo='CAJA', identificador_unico=f'{orden.numero_pedido}-{bulto_counter}')
+        db.session.add(nuevo_bulto)
+        bulto_counter += 1
     
-    # Aquí podríamos añadir una doble verificación final si fuera necesario
-    
+    for _ in range(num_bolsas):
+        nuevo_bulto = Bulto(orden_id=orden.id, tipo='BOLSA', identificador_unico=f'{orden.numero_pedido}-{bulto_counter}')
+        db.session.add(nuevo_bulto)
+        bulto_counter += 1
+
+    for _ in range(num_paquetes):
+        nuevo_bulto = Bulto(orden_id=orden.id, tipo='PAQUETE', identificador_unico=f'{orden.numero_pedido}-{bulto_counter}')
+        db.session.add(nuevo_bulto)
+        bulto_counter += 1
+        
     orden.estado = 'LISTO_PARA_DESPACHO'
     orden.fecha_fin_packing = datetime.datetime.utcnow()
     orden.packer_id = current_user.id
+    
     db.session.commit()
-
-    # Limpiar los datos de sesión para esta orden
     session.pop(f'packing_{orden_id}', None)
+    flash(f'Orden #{orden.numero_pedido} finalizada. Se generaron {bulto_counter - 1} etiquetas.', 'success')
+    
+    return redirect(url_for('imprimir_etiquetas', orden_id=orden.id))
 
-    flash(f'Orden #{orden.numero_pedido} marcada como LISTA PARA DESPACHO.', 'success')
-    return redirect(url_for('dashboard_packing'))
+# === INICIO: NUEVAS RUTAS PARA IMPRESIÓN Y QR (PASO 4) ===
+@app.route('/orden/<int:orden_id>/imprimir-etiquetas')
+@login_required
+def imprimir_etiquetas(orden_id):
+    orden = Orden.query.get_or_404(orden_id)
+    # Gracias a la relación 'backref', podemos acceder a orden.bultos directamente.
+    # No necesitamos hacer una consulta extra.
+    return render_template('imprimir_etiquetas.html', orden=orden)
 
-
-
-
-
+@app.route('/bulto/<identificador_unico>/qr_code')
+@login_required
+def qr_code_generator(identificador_unico):
+    try:
+        # Generamos la imagen del código QR en memoria RAM
+        img = qrcode.make(identificador_unico)
+        
+        # Creamos un buffer de bytes para guardar la imagen
+        buf = io.BytesIO()
+        img.save(buf)
+        buf.seek(0) # Rebobinamos el buffer al principio
+        
+        # Enviamos el buffer como un archivo de imagen PNG
+        return send_file(buf, mimetype='image/png')
+    except Exception as e:
+        print(f"Error generando QR para '{identificador_unico}': {e}")
+        return "Error", 500
+# === FIN: NUEVAS RUTAS ===
     
 
     
@@ -926,38 +955,78 @@ def dashboard_despacho():
     ordenes_para_despacho = Orden.query.filter_by(estado='LISTO_PARA_DESPACHO').order_by(Orden.fecha_creacion.asc()).all()
     return render_template('dashboard_despacho.html', ordenes=ordenes_para_despacho)
 
-@app.route('/despacho/<int:orden_id>', methods=['GET', 'POST'])
+@app.route('/despacho/<int:orden_id>')
 @login_required
 def detalle_despacho(orden_id):
+    """
+    Muestra la página de checklist para la verificación de bultos por escaneo.
+    """
     orden = Orden.query.get_or_404(orden_id)
-    
-    # Clave de sesión única para esta orden
-    session_key = f'despacho_verificado_{orden_id}'
-
-    # Si estamos procesando el formulario de despacho final (método POST)
-    if request.method == 'POST':
-        # Doble seguridad: nos aseguramos de que la orden haya sido verificada en esta sesión
-        if not session.get(session_key):
-            flash('Error de seguridad: La orden debe ser verificada por escaneo antes de despachar.', 'error')
-            return redirect(url_for('detalle_despacho', orden_id=orden_id))
-
-        transportista = request.form.get('transportista')
-        # ... (resto de tu lógica para guardar transportista, tracking, etc.) ...
-        orden.estado = 'DESPACHADO'
-        orden.fecha_despacho = datetime.datetime.utcnow()
-        db.session.commit()
-        
-        # Importante: Limpiamos la clave de sesión después de despachar
-        session.pop(session_key, None)
-        
-        flash(f'¡Orden #{orden.numero_pedido} despachada con éxito!', 'success')
+    if orden.estado != 'LISTO_PARA_DESPACHO':
+        flash(f'La orden #{orden.numero_pedido} no está lista para despacho.', 'warning')
         return redirect(url_for('dashboard_despacho'))
 
-    # Si estamos cargando la página (método GET)
-    # Verificamos si la orden ya ha sido verificada en esta sesión
-    verificado = session.get(session_key, False)
+    # Limpiamos la sesión de verificación anterior al cargar la página
+    session_key = f'despacho_bultos_verificados_{orden_id}'
+    if session_key in session:
+        session.pop(session_key)
+
+    return render_template('detalle_despacho.html', orden=orden)
+
+@app.route('/api/despacho/<int:orden_id>/verificar-bulto', methods=['POST'])
+@login_required
+def api_verificar_bulto_despacho(orden_id):
+    """
+    API para verificar un bulto escaneado contra la lista de la orden.
+    """
+    data = request.get_json()
+    identificador_escaneado = data.get('identificador_unico', '').strip()
+
+    orden = Orden.query.get_or_404(orden_id)
+    bulto_encontrado = Bulto.query.filter_by(identificador_unico=identificador_escaneado).first()
+
+    if not bulto_encontrado or bulto_encontrado.orden_id != orden.id:
+        return jsonify({'success': False, 'message': f'¡Bulto incorrecto! El bulto {identificador_escaneado} no pertenece a esta orden.'}), 422
+
+    # Guardamos los bultos verificados en la sesión del usuario
+    session_key = f'despacho_bultos_verificados_{orden_id}'
+    bultos_verificados = session.get(session_key, [])
+    if identificador_escaneado not in bultos_verificados:
+        bultos_verificados.append(identificador_escaneado)
+        session[session_key] = bultos_verificados
+
+    todos_verificados = len(bultos_verificados) == len(orden.bultos)
+
+    return jsonify({
+        'success': True,
+        'message': f'Bulto {identificador_escaneado} verificado.',
+        'identificador_verificado': identificador_escaneado,
+        'todos_verificados': todos_verificados
+    })
+
+@app.route('/despacho/<int:orden_id>/finalizar', methods=['POST'])
+@login_required
+def finalizar_despacho(orden_id):
+    """
+    Procesa el formulario final de despacho.
+    """
+    orden = Orden.query.get_or_404(orden_id)
+    session_key = f'despacho_bultos_verificados_{orden_id}'
     
-    return render_template('detalle_despacho.html', orden=orden, verificado=verificado)
+    # Doble verificación de seguridad
+    if len(session.get(session_key, [])) != len(orden.bultos):
+        flash('Error de seguridad: No todos los bultos han sido verificados.', 'error')
+        return redirect(url_for('detalle_despacho', orden_id=orden_id))
+
+    orden.transportista = request.form.get('transportista')
+    orden.numero_seguimiento = request.form.get('numero_seguimiento')
+    orden.estado = 'DESPACHADO'
+    orden.fecha_despacho = datetime.datetime.utcnow()
+    db.session.commit()
+
+    session.pop(session_key, None)
+    flash(f'¡Orden #{orden.numero_pedido} despachada con éxito!', 'success')
+    return redirect(url_for('dashboard_despacho'))
 
 # --- RUTA PARA REPORTES Y BÚSQUEDA ---
 # En app.py, reemplaza esta función completa
@@ -1299,21 +1368,7 @@ def api_ordenes_pendientes_count():
 
 # En app.py, añade esta nueva ruta
 
-@app.route('/despacho/<int:orden_id>/verificar', methods=['POST'])
-@login_required
-def verificar_despacho(orden_id):
-    orden = Orden.query.get_or_404(orden_id)
-    codigo_escaneado = request.form.get('codigo_escaneado', '').strip()
 
-    # Comparamos el código escaneado con el número de pedido esperado
-    if codigo_escaneado == orden.numero_pedido:
-        # ¡Éxito! Guardamos en la sesión que esta orden ha sido verificada.
-        session[f'despacho_verificado_{orden_id}'] = True
-        flash('Caja correcta. Puede proceder con el despacho.', 'success')
-    else:
-        flash(f'¡CAJA INCORRECTA! Se esperaba la orden #{orden.numero_pedido} pero se escaneó "{codigo_escaneado}".', 'error')
-
-    return redirect(url_for('detalle_despacho', orden_id=orden_id))
 
 @app.route('/api/lote/<int:lote_id>/codigo/<codigo_articulo>/completar', methods=['POST'])
 @login_required
@@ -1360,32 +1415,39 @@ def api_completar_codigo_picking(lote_id, codigo_articulo):
 @login_required
 @admin_required
 def api_completar_item_packing(item_id):
-    """
-    Permite a un admin marcar un ítem como completamente verificado
-    en la sesión de packing.
-    """
+    # Esta función ahora será mucho más poderosa porque afectará a todos
     item = ItemOrden.query.get_or_404(item_id)
-    orden = item.orden
-    session_key = f'packing_{orden.id}'
     
-    # Obtenemos el diccionario de conteo de la sesión actual
-    packing_scan_counts = session.get(session_key, {})
+    # Actualizamos el conteo directamente en la base de datos
+    item.cantidad_empacada = item.cantidad_solicitada
+    db.session.commit()
     
-    # Establecemos el conteo para este ítem a su cantidad total solicitada
-    packing_scan_counts[item.codigo_articulo] = item.cantidad_solicitada
-    
-    # Guardamos el diccionario actualizado de vuelta en la sesión
-    session[session_key] = packing_scan_counts
-    
-    print(f"Admin completó manualmente el ítem {item.codigo_articulo} para la orden #{orden.id}")
+    print(f"Admin completó el ítem {item.codigo_articulo} para la orden #{item.orden_id}")
 
     return jsonify({
         'success': True,
-        'message': f'Ítem {item.codigo_articulo} completado manualmente.',
+        'message': f'Ítem {item.codigo_articulo} completado por admin.',
         'codigo_articulo': item.codigo_articulo,
-        'escaneado': item.cantidad_solicitada,
+        'escaneado': item.cantidad_empacada,
         'solicitado': item.cantidad_solicitada
-    })    
+    })  
+    
+@app.route('/orden/<int:orden_id>/etiquetas.pdf')
+@login_required
+def generar_pdf_etiquetas(orden_id):
+    """
+    Renderiza un template HTML y lo convierte en un PDF de etiquetas.
+    """
+    orden = Orden.query.get_or_404(orden_id)
+    
+    # Renderizamos el template HTML específico para el PDF
+    html_renderizado = render_template('etiqueta_pdf.html', orden=orden)
+    
+    # Creamos un objeto HTML a partir del string renderizado
+    html_obj = HTML(string=html_renderizado, base_url=request.base_url)
+    
+    # Devolvemos el PDF renderizado directamente al navegador
+    return render_pdf(html_obj)  
 
 
 

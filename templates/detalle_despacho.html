@@ -6,9 +6,35 @@
 <style>
     .container { max-width: 800px; margin: 2em auto; }
     .card { background: white; padding: 2em; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-    .scan-gate { text-align: center; padding: 3em 1em; border: 2px dashed #ccc; }
-    .scan-gate h2 { margin-top: 0; }
-    .scan-input { padding: 12px; font-size: 18px; width: 80%; text-align: center; margin-bottom: 1em; }
+    h1, h2 { border-bottom: 2px solid #eee; padding-bottom: 0.5em; }
+
+    /* Estilos para el escaner y la lista */
+    .scan-area { margin-bottom: 2rem; }
+    .scan-input { width: 100%; padding: 15px; font-size: 1.5rem; text-align: center; border-radius: 5px; border: 2px solid #ccc; }
+    .scan-input:focus { border-color: #007bff; }
+    .bulto-list { list-style: none; padding: 0; margin-top: 1.5rem; }
+    .bulto-list li {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+        border: 1px solid #ddd;
+        margin-bottom: 0.5rem;
+        border-radius: 5px;
+        transition: background-color 0.3s, border-color 0.3s;
+    }
+    .bulto-id { font-weight: bold; font-family: monospace; font-size: 1.2rem; }
+    .bulto-status { font-weight: bold; padding: 5px 10px; border-radius: 15px; color: white; }
+    .status-pendiente { background-color: #f0ad4e; }
+    .status-verificado { background-color: #5cb85c; }
+    .bulto-list li.verificado {
+        background-color: #f2fdf2;
+        border-left: 5px solid #5cb85c;
+    }
+
+    /* Formulario de despacho final */
+    #dispatch-form-section { display: none; margin-top: 2rem; padding-top: 2rem; border-top: 2px dashed #ccc; }
+    .finalizar-btn { background-color: #28a745; color: white; padding: 15px 30px; font-size: 18px; border: none; border-radius: 5px; cursor: pointer; width: 100%; }
 </style>
 {% endblock %}
 
@@ -17,51 +43,101 @@
     <a href="{{ url_for('dashboard_despacho') }}">← Volver al Dashboard de Despacho</a>
 
     <div class="card" style="margin-top: 1rem;">
-    
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <div class="flash flash-{{ category }}">{{ message }}</div>
+        <h1>Verificación de Despacho</h1>
+        <p>Cliente: <strong>{{ orden.cliente_nombre }}</strong> | Pedido #{{ orden.numero_pedido }}</p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash flash-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="scan-area">
+            <input type="text" id="scan-input-despacho" class="scan-input" placeholder="Escanear QR del bulto..." autofocus>
+        </div>
+        
+        <h2>Bultos a Verificar ({{ orden.bultos|length }})</h2>
+        <ul class="bulto-list" id="bulto-list-despacho">
+            {% for bulto in orden.bultos %}
+            <li id="bulto-{{ bulto.identificador_unico }}">
+                <span class="bulto-id">{{ bulto.identificador_unico }}</span>
+                <span class="bulto-status status-pendiente">Pendiente</span>
+            </li>
             {% endfor %}
-        {% endif %}
-    {% endwith %}
+        </ul>
 
-    <!-- Lógica principal: muestra una vista u otra -->
-    {% if verificado %}
-        <!-- VISTA 2: DESPACHO COMPLETO (después de la verificación) -->
-        <h1>Despachar Pedido #{{ orden.numero_pedido }}</h1>
-        <p>Cliente: <strong>{{ orden.cliente_nombre }}</strong></p>
-        <hr>
-        <h2>Información del Envío</h2>
-        <form action="{{ url_for('detalle_despacho', orden_id=orden.id) }}" method="POST">
-            <div class="form-group" style="margin-bottom: 1em;">
-                <label for="transportista">Empresa de Transporte:</label>
-                <input type="text" id="transportista" name="transportista" required style="width: 100%; padding: 8px; font-size: 16px;">
-            </div>
-            <div class="form-group" style="margin-bottom: 1em;">
-                <label for="numero_seguimiento">Número de Seguimiento (Tracking):</label>
-                <input type="text" id="numero_seguimiento" name="numero_seguimiento" required style="width: 100%; padding: 8px; font-size: 16px;">
-            </div>
-            <div style="text-align: center; margin-top: 2em;">
-                <button type="submit" class="finalizar-btn" style="background-color: #5cb85c; padding: 15px 30px; font-size: 18px; border: none; border-radius: 5px; cursor: pointer;">
-                    Marcar como DESPACHADO
-                </button>
-            </div>
-        </form>
-
-    {% else %}
-        <!-- VISTA 1: PUERTA DE VERIFICACIÓN -->
-        <div class="scan-gate">
-            <h2>Verificación de Despacho</h2>
-            <p>Por favor, escanee la etiqueta de la caja para confirmar que corresponde a la orden <strong>#{{ orden.numero_pedido }}</strong>.</p>
-            <form action="{{ url_for('verificar_despacho', orden_id=orden.id) }}" method="POST">
-                <input type="text" name="codigo_escaneado" class="scan-input" placeholder="Escanear código de la caja..." autofocus>
-                <br>
-                <button type="submit" class="scan-btn">Verificar Caja</button>
+        <div id="dispatch-form-section">
+             <h2>Información del Envío</h2>
+             <form action="{{ url_for('finalizar_despacho', orden_id=orden.id) }}" method="POST">
+                <div class="form-group" style="margin-bottom: 1em;">
+                    <label for="transportista">Empresa de Transporte:</label>
+                    <input type="text" id="transportista" name="transportista" required style="width: 100%; padding: 8px; font-size: 16px;">
+                </div>
+                <div class="form-group" style="margin-bottom: 1em;">
+                    <label for="numero_seguimiento">Número de Seguimiento (Tracking):</label>
+                    <input type="text" id="numero_seguimiento" name="numero_seguimiento" required style="width: 100%; padding: 8px; font-size: 16px;">
+                </div>
+                <button type="submit" class="finalizar-btn">Marcar como DESPACHADO</button>
             </form>
         </div>
-    {% endif %}
-
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const scanInput = document.getElementById('scan-input-despacho');
+    const bultoList = document.getElementById('bulto-list-despacho');
+    const dispatchFormSection = document.getElementById('dispatch-form-section');
+    const audioSuccess = new Audio("{{ url_for('static', filename='sounds/success.mp3') }}");
+    const audioError = new Audio("{{ url_for('static', filename='sounds/error.mp3') }}");
+    
+    scanInput.addEventListener('change', function() { // 'change' es mejor que 'keypress' para scanners
+        const identificador = this.value.trim();
+        if (!identificador) return;
+
+        fetch("{{ url_for('api_verificar_bulto_despacho', orden_id=orden.id) }}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ identificador_unico: identificador })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                audioSuccess.play().catch(e => {});
+                updateBultoUI(data.identificador_verificado);
+                if (data.todos_verificados) {
+                    dispatchFormSection.style.display = 'block';
+                    scanInput.disabled = true;
+                }
+            } else {
+                audioError.play().catch(e => {});
+                alert(data.message); // Usamos un alert para errores críticos
+            }
+        })
+        .catch(error => {
+            console.error('Error en la verificación:', error);
+            alert('Error de conexión con el servidor.');
+        })
+        .finally(() => {
+            this.value = ''; // Limpiar el input
+            this.focus();
+        });
+    });
+
+    function updateBultoUI(identificador) {
+        const li = document.getElementById(`bulto-${identificador}`);
+        if (li) {
+            li.classList.add('verificado');
+            const statusSpan = li.querySelector('.bulto-status');
+            statusSpan.textContent = 'Verificado';
+            statusSpan.classList.remove('status-pendiente');
+            statusSpan.classList.add('status-verificado');
+        }
+    }
+});
+</script>
 {% endblock %}

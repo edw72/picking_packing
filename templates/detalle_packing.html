@@ -4,93 +4,51 @@
 
 {% block styles %}
 <style>
-    /* --- Estilos Base --- */
-    .container { 
-        max-width: 900px; 
-        margin: 2em auto; 
-        background: white; 
-        padding: 2em; 
-        border-radius: 8px; 
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-    }
-    h1, h2 { 
-        border-bottom: 2px solid #eee; 
-        padding-bottom: 0.5em; 
-    }
-    .back-link { 
-        display: inline-block; 
-        margin-bottom: 1rem; 
-        color: #337ab7; 
-        text-decoration: none; 
-    }
+    /* --- Estilos Base (sin cambios) --- */
+    .container { max-width: 900px; margin: 2em auto; background: white; padding: 2em; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+    h1, h2 { border-bottom: 2px solid #eee; padding-bottom: 0.5em; }
+    .back-link { display: inline-block; margin-bottom: 1rem; color: #337ab7; text-decoration: none; }
     .back-link:hover { text-decoration: underline; }
-    
-    /* --- Formulario de Escaneo --- */
-    .scan-form { 
-        margin: 2em 0; 
-        display: flex; 
-        gap: 10px; 
-        flex-direction: column; /* Apilado por defecto para móviles */
-    }
-    .scan-input, .scan-btn { 
-        width: 100%; 
-        font-size: 1.2rem; 
-        padding: 15px; 
-        border-radius: 5px;
-    }
-    .scan-input { border: 2px solid #ccc; }
-    .scan-input:focus { border-color: #337ab7; outline: none; }
-    .scan-btn { 
-        margin-top: 0.5em; 
-        background-color: #337ab7; 
-        color: white; 
-        border: none; 
-        cursor: pointer;
-    }
-
-    /* --- Feedback y Opciones de Vista --- */
+    .scan-form { margin: 2em 0; display: flex; gap: 10px; flex-direction: column; }
+    .scan-input { flex-grow: 1; font-size: 1.2rem; padding: 15px; border-radius: 5px; border: 2px solid #ccc; }
+    .scan-btn { background-color: #337ab7; color: white; border: none; cursor: pointer; padding: 15px; border-radius: 5px; }
     .scan-feedback { padding: 1em; margin-top: 1em; border-radius: 5px; font-weight: bold; display: none; text-align: center; }
-    .scan-feedback.success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-    .scan-feedback.error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .scan-feedback.success { background-color: #d4edda; color: #155724; }
+    .scan-feedback.error { background-color: #f8d7da; color: #721c24; }
     .view-options { margin: 1rem 0; padding: 0.5rem; background-color: #f9f9f9; border-radius: 5px; }
-    .view-options label { font-weight: bold; cursor: pointer; }
-
-    /* --- Tabla y Acciones --- */
     table { width: 100%; border-collapse: collapse; margin-top: 1em; }
     th, td { border: 1px solid #ddd; padding: 0.8em; text-align: left; vertical-align: middle; }
     th { background-color: #f8f9fa; }
     .completar-btn { background-color: #337ab7; color: white; border: none; padding: 4px 8px; font-size: 12px; border-radius: 4px; cursor: pointer; }
-    
-    /* --- Lógica Visual de Ocultar/Mostrar --- */
     .item-completado { background-color: #dff0d8 !important; color: #3c763d; }
     body.ocultar-completados .item-completado { display: none; }
-
-    /* --- Barra de Progreso --- */
     .progress-bar { background-color: #e9ecef; border-radius: 5px; overflow: hidden; height: 22px; border: 1px solid #ddd; }
     .progress { background-color: #337ab7; color: white; text-align: center; font-weight: bold; height: 100%; line-height: 22px; transition: width 0.4s ease-in-out; }
-    
-    /* --- Botón Finalizar --- */
-    .finalizar-btn { background-color: #28a745; color: white; padding: 15px 30px; font-size: 18px; border: none; border-radius: 5px; cursor: pointer; }
-    .finalizar-btn:disabled { background-color: #ccc; cursor: not-allowed; }
-
-    /* --- Media Query para Escritorio --- */
+    #packing-finalization-section { margin-top: 2.5em; padding: 2em; border: 2px solid #28a745; background-color: #f8fdf8; border-radius: 8px; display: none; }
+    .bultos-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1.5rem; align-items: end; }
+    .bultos-form-grid .form-group input { width: 100%; padding: 10px; font-size: 1.2rem; text-align: center; border-radius: 5px; border: 1px solid #ccc; }
+    .finalizar-btn { background-color: #28a745; color: white; padding: 15px 30px; font-size: 18px; border: none; border-radius: 5px; cursor: pointer; width: 100%; margin-top: 1rem; }
     @media (min-width: 768px) {
         .scan-form { flex-direction: row; }
-        .scan-btn { margin-top: 0; }
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container"> <!-- Eliminado el .card de aquí para evitar doble fondo blanco -->
+<div class="container">
     <a href="{{ url_for('dashboard_packing') }}" class="back-link">← Volver a Packing</a>
-    <h1>Verificación de Packing para Pedido #{{ orden.numero_pedido }}</h1>
+    <!-- Botón para resetear el conteo -->
+    <a href="{{ url_for('detalle_packing', orden_id=orden.id, reset='true') }}" class="action-link" style="float: right; background-color: #f0ad4e; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px;" onclick="return confirm('¿Está seguro de que desea reiniciar el conteo de packing para esta orden?');">Reiniciar Conteo</a>
 
+    <h1>Verificación de Packing para Pedido #{{ orden.numero_pedido }}</h1>
+    
+    <!-- === INICIO: BLOQUE RESTAURADO === -->
     <form id="scan-form-packing" class="scan-form">
         <input type="text" id="scan-input-packing" class="scan-input" placeholder="Escanear artículo para verificar..." autofocus>
         <button type="submit" class="scan-btn">Escanear</button>
     </form>
     <div id="scan-feedback-packing" class="scan-feedback"></div>
+    <!-- === FIN: BLOQUE RESTAURADO === -->
 
     <div class="view-options">
         <label>
@@ -115,11 +73,11 @@
                     <td><strong>{{ item.codigo_articulo }}</strong></td>
                     <td>{{ item.descripcion_articulo }}</td>
                     <td>
-                        {% set escaneados = packing_counts.get(item.codigo_articulo, 0) %}
+                        {% set escaneados = item.cantidad_empacada %}
                         {% set solicitados = item.cantidad_solicitada %}
                         <span id="progreso-texto-{{ item.codigo_articulo }}">{{ escaneados }} / {{ solicitados }}</span>
                         <div class="progress-bar">
-                            {% set progreso_inicial = (escaneados / solicitados) * 100 if solicitados > 0 else (100 if solicitados == 0 else 0) %}
+                            {% set progreso_inicial = (escaneados / solicitados) * 100 if solicitados > 0 else (100 if escaneados >= solicitados else 0) %}
                             <div id="progreso-barra-{{ item.codigo_articulo }}" class="progress" style="width: {{ progreso_inicial }}%;">
                                 {{ '%.0f'|format(progreso_inicial) }}%
                             </div>
@@ -134,11 +92,28 @@
             {% endfor %}
         </tbody>
     </table>
-
-    <div style="text-align: center; margin-top: 2em;">
+    
+    <!-- La sección de finalización sigue igual -->
+    <div id="packing-finalization-section">
+        <h2 style="text-align:center; color:#28a745;">¡Verificación Completa!</h2>
+        <p style="text-align:center;">Ahora, registra cómo se empacaron los productos para generar las etiquetas de envío.</p>
         <form action="{{ url_for('finalizar_packing', orden_id=orden.id) }}" method="POST">
+             <div class="bultos-form-grid">
+                <div class="form-group">
+                    <label for="cantidad_cajas">Nº de Cajas</label>
+                    <input type="number" name="cantidad_cajas" id="cantidad_cajas" value="0" min="0">
+                </div>
+                 <div class="form-group">
+                    <label for="cantidad_bolsas">Nº de Bolsas</label>
+                    <input type="number" name="cantidad_bolsas" id="cantidad_bolsas" value="0" min="0">
+                </div>
+                 <div class="form-group">
+                    <label for="cantidad_paquetes">Nº de Paquetes</label>
+                    <input type="number" name="cantidad_paquetes" id="cantidad_paquetes" value="0" min="0">
+                </div>
+            </div>
             <button id="finalizar-btn-packing" type="submit" class="finalizar-btn">
-                Marcar como Listo para Despacho
+                Generar Etiquetas y Finalizar Packing
             </button>
         </form>
     </div>
@@ -146,31 +121,29 @@
 {% endblock %}
 
 {% block scripts %}
+<!-- El bloque de JavaScript no necesita ningún cambio funcional. -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-
-    // --- SECCIÓN DE ELEMENTOS GLOBALES DEL DOM ---
     const scanForm = document.getElementById('scan-form-packing');
     const scanInput = document.getElementById('scan-input-packing');
     const feedbackDiv = document.getElementById('scan-feedback-packing');
-    const finalizarBtn = document.getElementById('finalizar-btn-packing');
     const toggleOcultar = document.getElementById('toggle-ocultar-completados');
-
-    // --- SECCIÓN DE AUDIO ---
+    const finalizationSection = document.getElementById('packing-finalization-section');
     const audioSuccess = new Audio("{{ url_for('static', filename='sounds/success.mp3') }}");
     const audioError = new Audio("{{ url_for('static', filename='sounds/error.mp3') }}");
-    let audioUnlocked = false; 
 
+    // --- Lógica de desbloqueo de audio (opcional, pero buena práctica) ---
+    let audioUnlocked = false;
     function unlockAudio() {
-        if(audioUnlocked) return;
+        if (audioUnlocked) return;
         new Audio("{{ url_for('static', filename='sounds/silent.mp3') }}").play().then(() => {
             audioUnlocked = true;
-        }).catch(()=>{});
+        }).catch(() => {});
     }
     document.body.addEventListener('click', unlockAudio, { once: true });
     document.body.addEventListener('keydown', unlockAudio, { once: true });
 
-    // --- LÓGICA DE ESCANEO PRINCIPAL ---
+
     scanForm.addEventListener('submit', function(event) {
         event.preventDefault(); 
         const codigo = scanInput.value.trim();
@@ -181,25 +154,20 @@ document.addEventListener('DOMContentLoaded', function() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ codigo_articulo: codigo }),
         })
-        .then(res => {
-            if (!res.ok) {
-                // Si la respuesta es un error (ej. 404, 422), lo manejamos aquí
-                return res.json().then(errData => Promise.reject(errData));
-            }
-            return res.json();
-        })
+        .then(res => res.json())
         .then(data => {
             if (data.success) {
                 if(audioUnlocked) audioSuccess.play();
                 updatePackingUI(data);
                 showPackingFeedback(data.message, 'success');
+            } else {
+                if(audioUnlocked) audioError.play();
+                showPackingFeedback(data.message || 'Ocurrió un error', 'error');
             }
         })
         .catch(error => {
-            if(audioUnlocked) audioError.play();
-            // El mensaje de error vendrá del JSON que rechazamos
-            showPackingFeedback(error.message || 'Ocurrió un error desconocido.', 'error');
             console.error('Error en escaneo de packing:', error);
+            showPackingFeedback('Error de conexión.', 'error');
         })
         .finally(() => {
             scanInput.value = '';
@@ -207,17 +175,13 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // --- LÓGICA PARA BOTÓN "COMPLETAR" DEL ADMIN ---
     document.querySelectorAll('.completar-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const itemId = this.dataset.itemId;
             const codigo = this.dataset.codigo;
             if (!confirm(`¿Marcar el ítem ${codigo} como 100% verificado para packing?`)) return;
             
-            fetch(`/api/packing/item/${itemId}/completar`, { 
-                method: 'POST',
-                headers: { 'X-CSRF-Token': '{{ csrf_token() if csrf_token else "" }}' } // Para compatibilidad si añades CSRF
-            })
+            fetch(`/api/packing/item/${itemId}/completar`, { method: 'POST' })
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
@@ -235,12 +199,10 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // --- LÓGICA PARA CHECKBOX "OCULTAR COMPLETADOS" ---
     toggleOcultar.addEventListener('change', function() {
         document.body.classList.toggle('ocultar-completados', this.checked);
     });
 
-    // --- FUNCIONES AUXILIARES DE UI ---
     function updatePackingUI(data) {
         const row = document.getElementById(`item-row-${data.codigo_articulo}`);
         if (!row) return;
@@ -274,10 +236,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 completo = false;
             }
         });
-        finalizarBtn.disabled = !completo;
+        
+        if (completo) {
+            finalizationSection.style.display = 'block';
+        } else {
+            finalizationSection.style.display = 'none';
+        }
     }
 
-    // --- INICIALIZACIÓN DE LA VISTA ---
     function inicializarVista() {
         document.querySelectorAll('.item-row').forEach(row => {
             const texto = row.querySelector('[id^="progreso-texto-"]').textContent;
@@ -286,7 +252,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 row.classList.add('item-completado');
             }
         });
-        checkIfPackingIsComplete(); // Comprobar estado al cargar la página
+        checkIfPackingIsComplete();
         if (toggleOcultar.checked) {
             document.body.classList.add('ocultar-completados');
         }
