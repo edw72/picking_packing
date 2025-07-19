@@ -1,8 +1,8 @@
-"""Añadir estructura completa para Hojas de Ruta
+"""Añadir soporte para entregas externas en Hoja de Ruta
 
-Revision ID: 8991f310c57c
+Revision ID: 42c559b0db7b
 Revises: 
-Create Date: 2025-07-18 17:44:09.134388
+Create Date: 2025-07-19 07:52:01.663527
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '8991f310c57c'
+revision = '42c559b0db7b'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -35,9 +35,13 @@ def upgrade():
     op.create_table('hoja_de_ruta',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('fecha_creacion', sa.DateTime(), nullable=True),
-    sa.Column('conductor_id', sa.Integer(), nullable=False),
     sa.Column('estado', sa.String(length=20), nullable=False),
     sa.Column('gastos_asignados', sa.Float(), nullable=False),
+    sa.Column('tipo_entrega', sa.String(length=20), nullable=False),
+    sa.Column('conductor_id', sa.Integer(), nullable=True),
+    sa.Column('nombre_transportista', sa.String(length=100), nullable=True),
+    sa.Column('nombre_receptor', sa.String(length=100), nullable=True),
+    sa.Column('id_receptor', sa.String(length=50), nullable=True),
     sa.ForeignKeyConstraint(['conductor_id'], ['user.id'], ),
     sa.PrimaryKeyConstraint('id')
     )

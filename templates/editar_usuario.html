@@ -28,6 +28,7 @@
             <select id="role" name="role">
                 <option value="operario" {% if user.role == 'operario' %}selected{% endif %}>Operario</option>
                 <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Administrador</option>
+                <option value="conductor" {% if user.role == 'conductor' %}selected{% endif %}>Conductor</option>
             </select>
         </div>
         <button type="submit" class="submit-btn" style="background-color: #007bff;">Guardar Cambios</button>

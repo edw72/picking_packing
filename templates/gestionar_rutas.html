@@ -1,0 +1,92 @@
+{% extends "layout.html" %}
+
+{% block title %}Gestión de Hojas de Ruta{% endblock %}
+
+{% block styles %}
+<style>
+    .admin-container { display: grid; grid-template-columns: 1fr 2fr; gap: 2rem; }
+    .form-container, .list-container { background: white; padding: 2em; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .form-group { margin-bottom: 1rem; }
+    label { display: block; margin-bottom: 0.5rem; font-weight: bold; }
+    input[type="text"], input[type="number"], select { width: 100%; padding: 0.7rem; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
+    .submit-btn { width: 100%; padding: 0.8rem; background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1rem; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 0.8rem; border-bottom: 1px solid #ddd; text-align: left;}
+    th { background-color: #f8f9fa; }
+    .estado { font-weight: bold; padding: 0.2em 0.5em; border-radius: 4px; color: white; display: inline-block; text-transform: capitalize; }
+    .estado-EN_PREPARACION { background-color: #f0ad4e; }
+    .estado-EN_RUTA { background-color: #337ab7; }
+    .estado-FINALIZADA { background-color: #5cb85c; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>Gestión de Hojas de Ruta</h1>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+<div class="admin-container">
+    <div class="form-container">
+        <h2>Crear Nueva Ruta</h2>
+        <form method="POST">
+            <div class="form-group">
+                <label for="conductor_id">Asignar a Conductor</label>
+                <select id="conductor_id" name="conductor_id" required>
+                    <option value="">-- Seleccione un conductor --</option>
+                    {% for conductor in conductores %}
+                    <option value="{{ conductor.id }}">{{ conductor.username }}</option>
+                    {% endfor %}
+                </select>
+                {% if not conductores %}
+                <p style="color: #d9534f; font-size: 0.9em;">No hay usuarios con el rol 'conductor'. Créelos en la sección de Usuarios.</p>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                <label for="gastos_asignados">Gastos Asignados (Q)</label>
+                <input type="number" id="gastos_asignados" name="gastos_asignados" step="0.01" min="0" value="0.00" required>
+            </div>
+            <button type="submit" class="submit-btn">Crear Hoja de Ruta</button>
+        </form>
+    </div>
+
+    <div class="list-container">
+        <h2>Hojas de Ruta Existentes</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th># Ruta</th>
+                    <th>Conductor</th>
+                    <th>Fecha</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ruta in rutas %}
+                <tr>
+                    <td><strong>{{ ruta.id }}</strong></td>
+                    <td>{{ ruta.conductor.username if ruta.conductor else 'N/A' }}</td>
+                    <td>{{ ruta.fecha_creacion | localtime }}</td>
+                    <td>
+                        <span class="estado estado-{{ ruta.estado }}">{{ ruta.estado.replace('_', ' ') }}</span>
+                    </td>
+                    <td>
+                        <a href="{{ url_for('detalle_ruta', ruta_id=ruta.id) }}" class="action-link" style="background-color: #337ab7;">Ver Detalle</a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" style="text-align: center; padding: 2rem;">No se han creado hojas de ruta todavía.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

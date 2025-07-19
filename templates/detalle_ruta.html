@@ -1,0 +1,122 @@
+
+{% extends "layout.html" %}
+
+{% block title %}Detalle de Ruta #{{ ruta.id }}{% endblock %}
+
+{% block styles %}
+<style>
+    .ruta-header {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 2rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .ruta-header h1 { margin-top: 0; }
+    .ruta-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+    }
+    .grid-column {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .grid-column h2 { margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 0.5rem; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1em; }
+    th, td { border-bottom: 1px solid #ddd; padding: 0.8em; text-align: left; vertical-align: middle; }
+    th { background-color: #f8f9fa; }
+    tr:hover { background-color: #f9f9f9; }
+    .submit-btn {
+        margin-top: 1.5em; padding: 12px 25px; font-size: 16px; background-color: #28a745;
+        color: white; border: none; border-radius: 5px; cursor: pointer;
+    }
+    .remove-btn {
+        background-color: #d9534f; color: white; border: none; padding: 5px 10px;
+        font-size: 12px; border-radius: 4px; cursor: pointer;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('gestionar_rutas') }}" class="back-link">← Volver a Todas las Rutas</a>
+
+<div class="ruta-header">
+    <h1>Detalle de Hoja de Ruta #{{ ruta.id }}</h1>
+    <p><strong>Conductor:</strong> {{ ruta.conductor.username }} | <strong>Estado:</strong> {{ ruta.estado.replace('_', ' ') }} | <strong>Gastos Asignados:</strong> Q{{ '%.2f'|format(ruta.gastos_asignados) }}</p>
+    <!-- Aquí irán los botones de acción como "Iniciar Ruta" -->
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+<div class="ruta-grid">
+    <!-- Columna Izquierda: Órdenes Disponibles -->
+    <div class="grid-column">
+        <h2>Órdenes Listas para Asignar</h2>
+        <form action="{{ url_for('agregar_ordenes_a_ruta', ruta_id=ruta.id) }}" method="POST">
+            {% if ordenes_disponibles %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Sel.</th>
+                        <th>Pedido #</th>
+                        <th>Cliente</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for orden in ordenes_disponibles %}
+                    <tr>
+                        <td><input type="checkbox" name="orden_id" value="{{ orden.id }}"></td>
+                        <td>{{ orden.numero_pedido }}</td>
+                        <td>{{ orden.cliente_nombre }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <button type="submit" class="submit-btn">Añadir Seleccionadas a la Ruta</button>
+            {% else %}
+            <p>No hay órdenes disponibles para asignar en este momento.</p>
+            {% endif %}
+        </form>
+    </div>
+
+    <!-- Columna Derecha: Órdenes Asignadas -->
+    <div class="grid-column">
+        <h2>Órdenes en esta Ruta ({{ ordenes_asignadas|length }})</h2>
+        {% if ordenes_asignadas %}
+        <table>
+             <thead>
+                <tr>
+                    <th>Pedido #</th>
+                    <th>Cliente</th>
+                    <th>Acción</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for orden in ordenes_asignadas %}
+                <tr>
+                    <td>{{ orden.numero_pedido }}</td>
+                    <td>{{ orden.cliente_nombre }}</td>
+                    <td>
+                        <form action="{{ url_for('quitar_orden_de_ruta', orden_id=orden.id) }}" method="POST">
+                            <button type="submit" class="remove-btn">Quitar</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>Aún no se han añadido órdenes a esta hoja de ruta.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

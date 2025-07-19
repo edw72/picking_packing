@@ -1,4 +1,5 @@
 # 1. IMPORTACIONES
+from sqlalchemy.orm import joinedload
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask import Flask, request, jsonify, render_template, redirect, url_for, flash, session
@@ -57,6 +58,8 @@ def to_localtime_filter(utc_datetime):
     local_dt = utc_datetime.replace(tzinfo=pytz.utc).astimezone(local_tz)
     return local_dt.strftime('%d-%m-%Y %H:%M:%S')
 
+
+
 # 3. MODELOS DE LA BASE DE DATOS
 class LotePicking(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -71,7 +74,7 @@ class Orden(db.Model):
     numero_pedido = db.Column(db.String(50), unique=True, nullable=False)
     cliente_nombre = db.Column(db.String(200), nullable=False)
     cliente_direccion = db.Column(db.String(300), nullable=True)
-    estado = db.Column(db.String(30), nullable=False, default='PENDIENTE') # Ampliado para nuevos estados
+    estado = db.Column(db.String(30), nullable=False, default='PENDIENTE')
     fecha_creacion = db.Column(db.DateTime, nullable=False, default=datetime.datetime.utcnow)
     lote_id = db.Column(db.Integer, db.ForeignKey('lote_picking.id'), nullable=True)
     items = db.relationship('ItemOrden', backref='orden', lazy=True, cascade="all, delete-orphan")
@@ -83,19 +86,14 @@ class Orden(db.Model):
     packer = db.relationship('User', foreign_keys=[packer_id])
     devolucion_confirmada = db.Column(db.Boolean, default=False, nullable=False)
     bultos = db.relationship('Bulto', backref='orden', cascade="all, delete-orphan")
-    
-    # --- CAMBIOS PARA HOJAS DE RUTA ---
     hoja_de_ruta_id = db.Column(db.Integer, db.ForeignKey('hoja_de_ruta.id'), nullable=True)
-
-    def __repr__(self):
-        return f'<Orden {self.numero_pedido}>'
+    def __repr__(self): return f'<Orden {self.numero_pedido}>'
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
-    # --- ROL DE CONDUCTOR AÑADIDO ---
-    role = db.Column(db.String(20), nullable=False, default='operario') # Roles: operario, admin, conductor
+    role = db.Column(db.String(20), nullable=False, default='operario')
     def set_password(self, password): self.password_hash = generate_password_hash(password)
     def check_password(self, password): return check_password_hash(self.password_hash, password)
     def __repr__(self): return f'<User {self.username}>'
@@ -150,14 +148,29 @@ class HojaDeRuta(db.Model):
     __tablename__ = 'hoja_de_ruta'
     id = db.Column(db.Integer, primary_key=True)
     fecha_creacion = db.Column(db.DateTime, default=datetime.datetime.utcnow)
-    conductor_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    conductor = db.relationship('User', backref='hojas_de_ruta')
     estado = db.Column(db.String(20), nullable=False, default='EN_PREPARACION')
     gastos_asignados = db.Column(db.Float, nullable=False, default=0.0)
     ordenes = db.relationship('Orden', backref='hoja_de_ruta', lazy='dynamic')
     transacciones = db.relationship('Transaccion', backref='hoja_de_ruta', lazy='dynamic', cascade="all, delete-orphan")
     gastos_viaje = db.relationship('GastoViaje', backref='hoja_de_ruta', lazy='dynamic', cascade="all, delete-orphan")
-    def __repr__(self): return f'<HojaDeRuta #{self.id} de {self.conductor.username}>'
+    
+    ### --- INICIO: CAMBIOS PARA RUTAS EXTERNAS --- ###
+    
+    # Campo para distinguir el tipo de entrega
+    tipo_entrega = db.Column(db.String(20), nullable=False, default='INTERNA') # Valores: 'INTERNA', 'EXTERNA'
+    
+    # Para entregas INTERNAS (conductor de la empresa)
+    conductor_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True) # Ahora es opcional
+    conductor = db.relationship('User', backref='hojas_de_ruta')
+
+    # Para entregas EXTERNAS (transportista externo)
+    nombre_transportista = db.Column(db.String(100), nullable=True) # Ej: "Guatex", "Cargo Expreso"
+    nombre_receptor = db.Column(db.String(100), nullable=True)     # Nombre de la persona que recibe
+    id_receptor = db.Column(db.String(50), nullable=True)          # DPI, Cédula, etc.
+    
+    ### --- FIN: CAMBIOS PARA RUTAS EXTERNAS --- ###
+
+    def __repr__(self): return f'<HojaDeRuta #{self.id} de tipo {self.tipo_entrega}>'
 
 class Transaccion(db.Model):
     __tablename__ = 'transaccion'
@@ -1047,6 +1060,47 @@ def reportes_y_busqueda():
 
     return render_template('reportes.html', stats=stats, orden=orden_encontrada, historial=historial_busqueda)
 
+@app.route('/rutas', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def gestionar_rutas():
+    if request.method == 'POST':
+        conductor_id = request.form.get('conductor_id')
+        gastos_str = request.form.get('gastos_asignados', '0').replace(',', '.')
+
+        # --- Validación ---
+        if not conductor_id:
+            flash('Debe seleccionar un conductor.', 'error')
+        else:
+            try:
+                gastos = float(gastos_str)
+                if gastos < 0:
+                    flash('Los gastos asignados no pueden ser negativos.', 'error')
+                else:
+                    # --- Creación de la Hoja de Ruta ---
+                    nueva_ruta = HojaDeRuta(
+                        conductor_id=int(conductor_id),
+                        gastos_asignados=gastos
+                    )
+                    db.session.add(nueva_ruta)
+                    db.session.commit()
+                    flash(f'Hoja de Ruta #{nueva_ruta.id} creada con éxito.', 'success')
+                    # Redirigimos para "limpiar" el formulario POST
+                    return redirect(url_for('gestionar_rutas'))
+            except ValueError:
+                flash('El valor de los gastos asignados no es un número válido.', 'error')
+
+    # --- Lógica para GET (cargar la página) ---
+    # Usamos joinedload para cargar el conductor relacionado y evitar consultas extra en el bucle
+    rutas = HojaDeRuta.query.options(joinedload(HojaDeRuta.conductor)).order_by(HojaDeRuta.fecha_creacion.desc()).all()
+    
+    # Obtenemos la lista de usuarios que pueden ser asignados como conductores
+    conductores = User.query.filter_by(role='conductor').order_by(User.username).all()
+    
+    return render_template('gestionar_rutas.html', rutas=rutas, conductores=conductores)
+
+
+
 # En app.py, reemplaza esta función completa
 
 @app.route('/reportes/operarios')
@@ -1394,6 +1448,72 @@ def generar_pdf_etiquetas(orden_id):
     
     # Devolvemos el PDF renderizado directamente al navegador
     return render_pdf(html_obj)  
+
+@app.route('/ruta/<int:ruta_id>')
+@login_required
+@admin_required
+def detalle_ruta(ruta_id):
+    # Buscamos la hoja de ruta específica o mostramos un error 404
+    ruta = HojaDeRuta.query.get_or_404(ruta_id)
+
+    # La consulta para las órdenes disponibles es la clave aquí:
+    # Deben estar LISTAS_PARA_DESPACHO y no tener ninguna hoja_de_ruta_id asignada.
+    ordenes_disponibles = Orden.query.filter(
+        Orden.estado == 'LISTO_PARA_DESPACHO',
+        Orden.hoja_de_ruta_id.is_(None)
+    ).order_by(Orden.fecha_creacion.asc()).all()
+
+    # Las órdenes ya asignadas las obtenemos directamente de la relación
+    ordenes_asignadas = ruta.ordenes.order_by(Orden.numero_pedido).all()
+
+    return render_template(
+        'detalle_ruta.html', 
+        ruta=ruta, 
+        ordenes_asignadas=ordenes_asignadas,
+        ordenes_disponibles=ordenes_disponibles
+    )
+    
+@app.route('/ruta/<int:ruta_id>/agregar-ordenes', methods=['POST'])
+@login_required
+@admin_required
+def agregar_ordenes_a_ruta(ruta_id):
+    ruta = HojaDeRuta.query.get_or_404(ruta_id)
+    
+    # Obtenemos la lista de IDs de las órdenes seleccionadas en el formulario
+    orden_ids_a_agregar = request.form.getlist('orden_id')
+
+    if not orden_ids_a_agregar:
+        flash('No se seleccionó ninguna orden para agregar.', 'warning')
+        return redirect(url_for('detalle_ruta', ruta_id=ruta_id))
+
+    for orden_id in orden_ids_a_agregar:
+        orden = Orden.query.get(orden_id)
+        # Doble chequeo de seguridad
+        if orden and orden.estado == 'LISTO_PARA_DESPACHO' and orden.hoja_de_ruta_id is None:
+            orden.hoja_de_ruta_id = ruta.id
+    
+    db.session.commit()
+    flash(f'{len(orden_ids_a_agregar)} órdenes han sido añadidas a la ruta #{ruta.id}.', 'success')
+    return redirect(url_for('detalle_ruta', ruta_id=ruta_id))
+
+
+@app.route('/ruta/quitar-orden/<int:orden_id>', methods=['POST'])
+@login_required
+@admin_required
+def quitar_orden_de_ruta(orden_id):
+    orden = Orden.query.get_or_404(orden_id)
+    ruta_id_actual = orden.hoja_de_ruta_id
+
+    if ruta_id_actual is None:
+        flash('Esta orden no está asignada a ninguna ruta.', 'error')
+        return redirect(url_for('gestionar_rutas')) # Redirigir a la vista general si hay un problema
+
+    # Simplemente "liberamos" la orden
+    orden.hoja_de_ruta_id = None
+    db.session.commit()
+    
+    flash(f'La orden #{orden.numero_pedido} ha sido quitada de la ruta.', 'success')
+    return redirect(url_for('detalle_ruta', ruta_id=ruta_id_actual))
 
 
 
