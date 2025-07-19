@@ -1,0 +1,125 @@
+{% extends "layout.html" %}
+
+{% block title %}Detalle de Ruta #{{ ruta.id }}{% endblock %}
+
+{% block styles %}
+<style>
+    .card { background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem; }
+    h2 { border-bottom: 2px solid #eee; padding-bottom: 0.5rem; margin-bottom: 1rem; }
+    .orden-card { border: 1px solid #ddd; border-left: 5px solid #337ab7; border-radius: 5px; padding: 1rem; margin-bottom: 1rem; }
+    .orden-header { display: flex; justify-content: space-between; align-items: center; }
+    .orden-header h3 { margin: 0; font-size: 1.2rem; }
+    .estado-ENTREGADO { background-color: #5cb85c; color: white; padding: 0.2em 0.5em; border-radius: 4px; }
+    .estado-ENTREGA_FALLIDA { background-color: #d9534f; color: white; padding: 0.2em 0.5em; border-radius: 4px; }
+    .actions-form { margin-top: 1rem; display: flex; gap: 10px; flex-wrap: wrap; }
+    .actions-form select, .actions-form button { padding: 8px 12px; border-radius: 5px; border: 1px solid #ccc; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; font-weight: bold; margin-bottom: 0.5rem; }
+    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #ccc; }
+    .submit-btn { background-color: #337ab7; color: white; border: none; cursor: pointer; padding: 10px 15px; }
+    .finalizar-ruta-btn { background-color: #28a745; color: white; border: none; padding: 15px; font-size: 1.2rem; width: 100%; cursor: pointer; border-radius: 5px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('dashboard_conductor') }}" class="back-link">← Volver a mi Dashboard</a>
+
+<div class="card">
+    <h1>Detalle de Ruta #{{ ruta.id }}</h1>
+    <p>Revisa las órdenes, actualiza su estado y registra cualquier gasto o pago recibido.</p>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+<div class="form-grid">
+    <!-- Columna Izquierda: Gastos y Pagos -->
+    <div>
+        <div class="card">
+            <h2>Registrar Gasto</h2>
+            <form action="{{ url_for('registrar_gasto_conductor') }}" method="POST">
+                <input type="hidden" name="ruta_id" value="{{ ruta.id }}">
+                <div class="form-group">
+                    <label for="monto_gastado">Monto (¢)</label>
+                    <input type="number" name="monto_gastado" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label for="descripcion">Descripción</label>
+                    <input type="text" name="descripcion" placeholder="Ej: Combustible, Envío Guatex" required>
+                </div>
+                <button type="submit" class="submit-btn">Registrar Gasto</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2>Registrar Pago Recibido</h2>
+            <form action="{{ url_for('registrar_pago_conductor') }}" method="POST">
+                <input type="hidden" name="ruta_id" value="{{ ruta.id }}">
+                <div class="form-group">
+                    <label for="orden_id">Para la Orden</label>
+                    <select name="orden_id" required>
+                        <option value="">-- Seleccione una orden --</option>
+                        {% for orden in ordenes %}
+                        <option value="{{ orden.id }}">#{{ orden.numero_pedido }} - {{ orden.cliente_nombre }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="monto_recibido">Monto (¢)</label>
+                    <input type="number" name="monto_recibido" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label for="nota">Nota (Opcional)</label>
+                    <textarea name="nota" rows="2"></textarea>
+                </div>
+                <button type="submit" class="submit-btn">Registrar Pago</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Columna Derecha: Lista de Órdenes -->
+    <div>
+        <div class="card">
+            <h2>Órdenes a Entregar ({{ ordenes|length }})</h2>
+            {% for orden in ordenes %}
+            <div class="orden-card">
+                <div class="orden-header">
+                    <div>
+                        <h3>#{{ orden.numero_pedido }}</h3>
+                        <p style="margin: 0;"><strong>Cliente:</strong> {{ orden.cliente_nombre }}</p>
+                    </div>
+                    <div>
+                        {% if orden.estado in ['ENTREGADO', 'ENTREGA_FALLIDA'] %}
+                            <span class="estado-{{ orden.estado }}">{{ orden.estado.replace('_', ' ') }}</span>
+                        {% else %}
+                            <span style="color: #777;">En Reparto</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <form action="{{ url_for('actualizar_estado_orden', orden_id=orden.id) }}" method="POST" class="actions-form">
+                    <select name="estado">
+                        <option value="ENTREGADO">Entregado con Éxito</option>
+                        <option value="ENTREGA_FALLIDA">Entrega Fallida</option>
+                    </select>
+                    <button type="submit">Actualizar Estado</button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <form action="{{ url_for('finalizar_ruta_conductor') }}" method="POST" onsubmit="return confirm('¿Está seguro de que desea finalizar esta ruta? No podrá realizar más cambios.');">
+        <input type="hidden" name="ruta_id" value="{{ ruta.id }}">
+        <button type="submit" class="finalizar-ruta-btn">Finalizar Ruta y Volver al Dashboard</button>
+    </form>
+</div>
+{% endblock %}

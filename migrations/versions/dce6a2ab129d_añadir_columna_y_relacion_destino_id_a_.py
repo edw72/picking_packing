@@ -1,8 +1,8 @@
-"""Añadir soporte para entregas externas en Hoja de Ruta
+"""Añadir columna y relacion destino_id a Orden
 
-Revision ID: 42c559b0db7b
+Revision ID: dce6a2ab129d
 Revises: 
-Create Date: 2025-07-19 07:52:01.663527
+Create Date: 2025-07-19 12:33:54.752090
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '42c559b0db7b'
+revision = 'dce6a2ab129d'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -77,6 +77,8 @@ def upgrade():
     sa.Column('packer_id', sa.Integer(), nullable=True),
     sa.Column('devolucion_confirmada', sa.Boolean(), nullable=False),
     sa.Column('hoja_de_ruta_id', sa.Integer(), nullable=True),
+    sa.Column('destino_id', sa.Integer(), nullable=True),
+    sa.ForeignKeyConstraint(['destino_id'], ['destino.id'], ),
     sa.ForeignKeyConstraint(['hoja_de_ruta_id'], ['hoja_de_ruta.id'], ),
     sa.ForeignKeyConstraint(['lote_id'], ['lote_picking.id'], ),
     sa.ForeignKeyConstraint(['packer_id'], ['user.id'], ondelete='SET NULL'),

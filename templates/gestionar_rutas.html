@@ -4,19 +4,27 @@
 
 {% block styles %}
 <style>
-    .admin-container { display: grid; grid-template-columns: 1fr 2fr; gap: 2rem; }
+    .admin-container { display: grid; grid-template-columns: 1fr; gap: 2rem; }
+    @media (min-width: 992px) { .admin-container { grid-template-columns: 1fr 2fr; } }
     .form-container, .list-container { background: white; padding: 2em; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
     .form-group { margin-bottom: 1rem; }
     label { display: block; margin-bottom: 0.5rem; font-weight: bold; }
     input[type="text"], input[type="number"], select { width: 100%; padding: 0.7rem; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
     .submit-btn { width: 100%; padding: 0.8rem; background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1rem; }
     table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 0.8rem; border-bottom: 1px solid #ddd; text-align: left;}
+    th, td { padding: 0.8rem; border-bottom: 1px solid #ddd; text-align: left; vertical-align: middle;}
     th { background-color: #f8f9fa; }
     .estado { font-weight: bold; padding: 0.2em 0.5em; border-radius: 4px; color: white; display: inline-block; text-transform: capitalize; }
     .estado-EN_PREPARACION { background-color: #f0ad4e; }
     .estado-EN_RUTA { background-color: #337ab7; }
     .estado-FINALIZADA { background-color: #5cb85c; }
+    
+    /* --- Estilos para el formulario dinámico --- */
+    #campos-externa, #campos-interna {
+        border-left: 3px solid #eee;
+        padding-left: 1rem;
+        margin-top: 1rem;
+    }
 </style>
 {% endblock %}
 
@@ -35,22 +43,57 @@
     <div class="form-container">
         <h2>Crear Nueva Ruta</h2>
         <form method="POST">
+            <!-- --- INICIO: Selector de Tipo de Entrega --- -->
             <div class="form-group">
-                <label for="conductor_id">Asignar a Conductor</label>
-                <select id="conductor_id" name="conductor_id" required>
-                    <option value="">-- Seleccione un conductor --</option>
-                    {% for conductor in conductores %}
-                    <option value="{{ conductor.id }}">{{ conductor.username }}</option>
-                    {% endfor %}
+                <label for="tipo_entrega">Tipo de Entrega</label>
+                <select id="tipo_entrega" name="tipo_entrega" required>
+                    <option value="INTERNA" selected>Interna (Conductor de la empresa)</option>
+                    <option value="EXTERNA">Externa (Transportista tercero)</option>
                 </select>
-                {% if not conductores %}
-                <p style="color: #d9534f; font-size: 0.9em;">No hay usuarios con el rol 'conductor'. Créelos en la sección de Usuarios.</p>
-                {% endif %}
             </div>
+            <!-- --- FIN: Selector --- -->
+
+            <!-- --- INICIO: Campos para Ruta INTERNA (visibles por defecto) --- -->
+            <div id="campos-interna">
+                <div class="form-group">
+                    <label for="conductor_id">Asignar a Conductor</label>
+                    <select id="conductor_id" name="conductor_id">
+                        <option value="">-- Seleccione un conductor --</option>
+                        {% for conductor in conductores %}
+                        <option value="{{ conductor.id }}">{{ conductor.username }}</option>
+                        {% endfor %}
+                    </select>
+                    {% if not conductores %}
+                    <p style="color: #d9534f; font-size: 0.9em;">No hay usuarios con el rol 'conductor'.</p>
+                    {% endif %}
+                </div>
+            </div>
+            <!-- --- FIN: Campos Interna --- -->
+
+            <!-- --- INICIO: Campos para Ruta EXTERNA (ocultos por defecto) --- -->
+            <div id="campos-externa" style="display: none;">
+                <div class="form-group">
+                    <label for="nombre_transportista">Nombre del Transportista</label>
+                    <input type="text" id="nombre_transportista" name="nombre_transportista" placeholder="Ej: Guatex, Cargo Expreso">
+                </div>
+                <div class="form-group">
+                    <label for="nombre_receptor">Nombre de Quien Recibe</label>
+                    <input type="text" id="nombre_receptor" name="nombre_receptor">
+                </div>
+                <div class="form-group">
+                    <label for="id_receptor">ID de Quien Recibe</label>
+                    <input type="text" id="id_receptor" name="id_receptor" placeholder="DPI, Cédula, etc.">
+                </div>
+            </div>
+            <!-- --- FIN: Campos Externa --- -->
+
+            <hr>
+
             <div class="form-group">
-                <label for="gastos_asignados">Gastos Asignados (Q)</label>
+                <label for="gastos_asignados">Gastos Asignados (¢)</label>
                 <input type="number" id="gastos_asignados" name="gastos_asignados" step="0.01" min="0" value="0.00" required>
             </div>
+
             <button type="submit" class="submit-btn">Crear Hoja de Ruta</button>
         </form>
     </div>
@@ -61,7 +104,7 @@
             <thead>
                 <tr>
                     <th># Ruta</th>
-                    <th>Conductor</th>
+                    <th>Entrega</th> <!-- Columna cambiada -->
                     <th>Fecha</th>
                     <th>Estado</th>
                     <th>Acciones</th>
@@ -71,7 +114,14 @@
                 {% for ruta in rutas %}
                 <tr>
                     <td><strong>{{ ruta.id }}</strong></td>
-                    <td>{{ ruta.conductor.username if ruta.conductor else 'N/A' }}</td>
+                    <td>
+                        <!-- Mostramos la información correcta según el tipo -->
+                        {% if ruta.tipo_entrega == 'INTERNA' %}
+                           <strong>Interna:</strong> {{ ruta.conductor.username if ruta.conductor else 'N/A' }}
+                        {% else %}
+                           <strong>Externa:</strong> {{ ruta.nombre_transportista }}
+                        {% endif %}
+                    </td>
                     <td>{{ ruta.fecha_creacion | localtime }}</td>
                     <td>
                         <span class="estado estado-{{ ruta.estado }}">{{ ruta.estado.replace('_', ' ') }}</span>
@@ -89,4 +139,53 @@
         </table>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<!-- --- INICIO: Bloque de JavaScript para el formulario dinámico --- -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const tipoEntregaSelect = document.getElementById('tipo_entrega');
+    const camposInterna = document.getElementById('campos-interna');
+    const camposExterna = document.getElementById('campos-externa');
+    
+    // Inputs dentro de los divs
+    const conductorInput = document.getElementById('conductor_id');
+    const transportistaInput = document.getElementById('nombre_transportista');
+    const receptorInput = document.getElementById('nombre_receptor');
+    const idReceptorInput = document.getElementById('id_receptor');
+
+    function toggleCampos() {
+        if (tipoEntregaSelect.value === 'INTERNA') {
+            // Mostrar campos internos y hacerlos obligatorios
+            camposInterna.style.display = 'block';
+            conductorInput.required = true;
+            
+            // Ocultar campos externos y quitarles el 'required'
+            camposExterna.style.display = 'none';
+            transportistaInput.required = false;
+            receptorInput.required = false;
+            idReceptorInput.required = false;
+
+        } else { // Si es 'EXTERNA'
+            // Ocultar campos internos y quitarles el 'required'
+            camposInterna.style.display = 'none';
+            conductorInput.required = false;
+
+            // Mostrar campos externos y hacerlos obligatorios
+            camposExterna.style.display = 'block';
+            transportistaInput.required = true;
+            receptorInput.required = true;
+            idReceptorInput.required = true;
+        }
+    }
+
+    // Añadir el 'listener' al selector
+    tipoEntregaSelect.addEventListener('change', toggleCampos);
+
+    // Ejecutar la función una vez al cargar la página para establecer el estado inicial
+    toggleCampos();
+});
+</script>
+<!-- --- FIN: Bloque de JavaScript --- -->
 {% endblock %}

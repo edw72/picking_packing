@@ -1,0 +1,70 @@
+{% extends "layout.html" %}
+
+{% block title %}Mis Rutas{% endblock %}
+
+{% block styles %}
+<style>
+    .card {
+        background: white; padding: 1.5rem; border-radius: 8px;
+        margin-bottom: 1.5rem; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .card h2 { margin-top: 0; }
+    .no-ruta { text-align: center; padding: 3rem; }
+    .ruta-activa-header {
+        border-bottom: 2px solid #337ab7;
+        padding-bottom: 1rem;
+        margin-bottom: 1rem;
+    }
+    .ruta-info { display: flex; justify-content: space-between; font-size: 1.1em; }
+    .action-btn { 
+        display: block; width: 100%; text-align: center; padding: 15px;
+        font-size: 1.2rem; text-decoration: none; color: white;
+        background-color: #5cb85c; border-radius: 5px; margin-top: 1rem;
+    }
+    .historial-list li {
+        display: flex; justify-content: space-between; padding: 0.8rem 0;
+        border-bottom: 1px solid #eee;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>Dashboard del Conductor</h1>
+
+<!-- Sección de Ruta Activa -->
+<div class="card">
+    <h2>Ruta Activa</h2>
+    {% if ruta_activa %}
+        <div class="ruta-activa-header">
+            <div class="ruta-info">
+                <span><strong>Ruta #{{ ruta_activa.id }}</strong></span>
+                <span>{{ ruta_activa.ordenes.count() }} Órdenes</span>
+            </div>
+        </div>
+        <p>Tienes una ruta en curso. Haz clic abajo para ver los detalles, registrar entregas y gastos.</p>
+        <!-- Este enlace llevará a una futura página de detalle -->
+        <a href="{{ url_for('detalle_ruta_conductor') }}" class="action-btn">Ver Detalles de Ruta Activa</a>
+    {% else %}
+        <div class="no-ruta">
+            <p>No tienes ninguna ruta activa asignada en este momento.</p>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Sección de Historial -->
+<div class="card">
+    <h2>Historial de Rutas Finalizadas</h2>
+    {% if historial_rutas %}
+    <ul class="historial-list">
+        {% for ruta in historial_rutas %}
+            <li>
+                <span>Ruta #{{ ruta.id }} - {{ ruta.fecha_creacion|localtime }}</span>
+                <span>Estado: {{ ruta.estado }}</span>
+            </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+        <p>Aún no has completado ninguna ruta.</p>
+    {% endif %}
+</div>
+{% endblock %}

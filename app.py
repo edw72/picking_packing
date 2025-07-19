@@ -18,6 +18,7 @@ import io
 from flask import send_file
 from flask_migrate import Migrate # Importar Migrate
 from flask_weasyprint import HTML, render_pdf
+from flask import abort # Asegúrate de importar abort al principio del archivo
 
 
 # 2. CONFIGURACIÓN DE LA APP
@@ -48,7 +49,7 @@ def admin_required(f):
 
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    return db.session.get(User, int(user_id))
 
 # --- FILTRO PERSONALIZADO PARA FECHAS ---
 @app.template_filter('localtime')
@@ -87,6 +88,8 @@ class Orden(db.Model):
     devolucion_confirmada = db.Column(db.Boolean, default=False, nullable=False)
     bultos = db.relationship('Bulto', backref='orden', cascade="all, delete-orphan")
     hoja_de_ruta_id = db.Column(db.Integer, db.ForeignKey('hoja_de_ruta.id'), nullable=True)
+    destino_id = db.Column(db.Integer, db.ForeignKey('destino.id'), nullable=True)
+    destino = db.relationship('Destino', backref='ordenes')
     def __repr__(self): return f'<Orden {self.numero_pedido}>'
 
 class User(UserMixin, db.Model):
@@ -226,7 +229,9 @@ def logout():
 @login_required
 @admin_required
 def editar_usuario(user_id):
-    user_a_editar = User.query.get_or_404(user_id)
+    user_a_editar = db.session.get(User, user_id)
+    if not user_a_editar:
+        return abort(404)
     
     if request.method == 'POST':
         # Actualizamos el rol
@@ -249,6 +254,9 @@ def editar_usuario(user_id):
 @login_required
 @admin_required
 def borrar_usuario(user_id):
+    user_a_borrar = db.session.get(User, user_id)
+    if not user_a_borrar:
+        return abort(404)
     # Un admin no puede borrarse a sí mismo
     if user_id == current_user.id:
         flash('No puedes eliminar tu propia cuenta de administrador.', 'error')
@@ -271,6 +279,8 @@ def borrar_usuario(user_id):
 @app.route('/')
 @login_required
 def dashboard():
+    if current_user.role == 'conductor':
+        return redirect(url_for('dashboard_conductor'))
     estados_posibles = ['PENDIENTE', 'EN_PICKING', 'CON_INCIDENCIA', 'EMPACADO', 'LISTO_PARA_DESPACHO', 'DESPACHADO', 'CANCELADA']
     estado_filtro = request.args.get('estado')
     
@@ -1065,37 +1075,54 @@ def reportes_y_busqueda():
 @admin_required
 def gestionar_rutas():
     if request.method == 'POST':
-        conductor_id = request.form.get('conductor_id')
+        # --- Datos comunes ---
+        tipo_entrega = request.form.get('tipo_entrega')
         gastos_str = request.form.get('gastos_asignados', '0').replace(',', '.')
+        
+        try:
+            gastos = float(gastos_str)
+            if gastos < 0:
+                flash('Los gastos asignados no pueden ser negativos.', 'error')
+                return redirect(url_for('gestionar_rutas'))
+        except ValueError:
+            flash('El valor de los gastos asignados no es un número válido.', 'error')
+            return redirect(url_for('gestionar_rutas'))
 
-        # --- Validación ---
-        if not conductor_id:
-            flash('Debe seleccionar un conductor.', 'error')
+        # --- Lógica dinámica según el tipo de entrega ---
+        nueva_ruta = HojaDeRuta(gastos_asignados=gastos, tipo_entrega=tipo_entrega)
+
+        if tipo_entrega == 'INTERNA':
+            conductor_id = request.form.get('conductor_id')
+            if not conductor_id:
+                flash('Debe seleccionar un conductor para una ruta interna.', 'error')
+                return redirect(url_for('gestionar_rutas'))
+            nueva_ruta.conductor_id = int(conductor_id)
+
+        elif tipo_entrega == 'EXTERNA':
+            nombre_transportista = request.form.get('nombre_transportista')
+            nombre_receptor = request.form.get('nombre_receptor')
+            id_receptor = request.form.get('id_receptor')
+            if not all([nombre_transportista, nombre_receptor, id_receptor]):
+                flash('Para una entrega externa, todos los campos de transportista son obligatorios.', 'error')
+                return redirect(url_for('gestionar_rutas'))
+            nueva_ruta.nombre_transportista = nombre_transportista
+            nueva_ruta.nombre_receptor = nombre_receptor
+            nueva_ruta.id_receptor = id_receptor
+        
         else:
-            try:
-                gastos = float(gastos_str)
-                if gastos < 0:
-                    flash('Los gastos asignados no pueden ser negativos.', 'error')
-                else:
-                    # --- Creación de la Hoja de Ruta ---
-                    nueva_ruta = HojaDeRuta(
-                        conductor_id=int(conductor_id),
-                        gastos_asignados=gastos
-                    )
-                    db.session.add(nueva_ruta)
-                    db.session.commit()
-                    flash(f'Hoja de Ruta #{nueva_ruta.id} creada con éxito.', 'success')
-                    # Redirigimos para "limpiar" el formulario POST
-                    return redirect(url_for('gestionar_rutas'))
-            except ValueError:
-                flash('El valor de los gastos asignados no es un número válido.', 'error')
+            flash('Tipo de entrega no válido.', 'error')
+            return redirect(url_for('gestionar_rutas'))
 
-    # --- Lógica para GET (cargar la página) ---
-    # Usamos joinedload para cargar el conductor relacionado y evitar consultas extra en el bucle
-    rutas = HojaDeRuta.query.options(joinedload(HojaDeRuta.conductor)).order_by(HojaDeRuta.fecha_creacion.desc()).all()
-    
-    # Obtenemos la lista de usuarios que pueden ser asignados como conductores
-    conductores = User.query.filter_by(role='conductor').order_by(User.username).all()
+        # --- Guardar en la BD ---
+        db.session.add(nueva_ruta)
+        db.session.commit()
+        flash(f'Hoja de Ruta #{nueva_ruta.id} ({tipo_entrega}) creada con éxito.', 'success')
+        return redirect(url_for('gestionar_rutas'))
+
+    # --- Lógica para GET (sin cambios) ---
+    rutas_query = db.select(HojaDeRuta).options(joinedload(HojaDeRuta.conductor)).order_by(HojaDeRuta.fecha_creacion.desc())
+    rutas = db.session.execute(rutas_query).scalars().all()
+    conductores = db.session.execute(db.select(User).filter_by(role='conductor').order_by(User.username)).scalars().all()
     
     return render_template('gestionar_rutas.html', rutas=rutas, conductores=conductores)
 
@@ -1515,7 +1542,247 @@ def quitar_orden_de_ruta(orden_id):
     flash(f'La orden #{orden.numero_pedido} ha sido quitada de la ruta.', 'success')
     return redirect(url_for('detalle_ruta', ruta_id=ruta_id_actual))
 
+@app.route('/ruta/<int:ruta_id>/iniciar', methods=['POST'])
+@login_required
+@admin_required
+def iniciar_ruta(ruta_id):
+    ruta = db.get_or_404(HojaDeRuta, ruta_id)
 
+    # --- Validación ---
+    # 1. No se puede iniciar una ruta que no esté en preparación
+    if ruta.estado != 'EN_PREPARACION':
+        flash('Esta ruta no se puede iniciar porque no está en estado de "Preparación".', 'error')
+        return redirect(url_for('detalle_ruta', ruta_id=ruta.id))
+
+    # 2. No tiene sentido enviar una ruta vacía
+    if not ruta.ordenes.count() > 0:
+        flash('No se puede iniciar una ruta vacía. Añada al menos una orden.', 'error')
+        return redirect(url_for('detalle_ruta', ruta_id=ruta.id))
+
+    # --- Actualización de Estados ---
+    # 1. Cambiar el estado de la Hoja de Ruta
+    ruta.estado = 'EN_RUTA'
+    
+    # 2. Cambiar el estado de todas las órdenes contenidas y registrar la fecha de despacho
+    for orden in ruta.ordenes:
+        orden.estado = 'DESPACHADO' # O podríamos crear un nuevo estado 'EN_REPARTO' en el futuro
+        orden.fecha_despacho = datetime.datetime.utcnow()
+
+    db.session.commit()
+
+    flash(f'¡La Ruta #{ruta.id} ha iniciado! Las órdenes han sido marcadas como despachadas.', 'success')
+    return redirect(url_for('detalle_ruta', ruta_id=ruta.id))
+
+
+
+
+#esto es para crear un nuevo admin despues de un reseteo de la base de datos
+@app.cli.command("create-admin")
+def create_admin_command():
+    """Crea un usuario administrador."""
+    if not User.query.filter_by(username='admin').first():
+        print("Creando usuario admin...")
+        admin = User(username='admin', role='admin')
+        admin.set_password('admin') # O pedir la contraseña de forma interactiva
+        db.session.add(admin)
+        db.session.commit()
+        print("Usuario admin creado.")
+    else:
+        print("El usuario admin ya existe.")
+        
+
+def conductor_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or current_user.role != 'conductor':
+            flash('Se requiere rol de conductor para acceder a esta página.', 'error')
+            # Lo redirigimos al dashboard normal, que a su vez lo podría redirigir al login
+            return redirect(url_for('dashboard')) 
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route('/mis-rutas')
+@login_required
+@conductor_required
+def dashboard_conductor():
+    # Buscamos la ruta que está actualmente EN_RUTA para este conductor
+    ruta_activa = db.session.execute(
+        db.select(HojaDeRuta).where(
+            HojaDeRuta.conductor_id == current_user.id,
+            HojaDeRuta.estado == 'EN_RUTA'
+        )
+    ).scalar_one_or_none()
+
+    # Buscamos el historial de rutas ya finalizadas por este conductor
+    historial_rutas = db.session.execute(
+        db.select(HojaDeRuta).where(
+            HojaDeRuta.conductor_id == current_user.id,
+            HojaDeRuta.estado.in_(['FINALIZADA', 'ARCHIVADA'])
+        ).order_by(HojaDeRuta.fecha_creacion.desc())
+    ).scalars().all()
+
+    return render_template(
+        'dashboard_conductor.html', 
+        ruta_activa=ruta_activa,
+        historial_rutas=historial_rutas
+    )
+
+
+@app.route('/mi-ruta/detalle')
+@login_required
+@conductor_required
+def detalle_ruta_conductor():
+    # Buscamos la única ruta activa para el conductor
+    ruta = db.first_or_404(
+        db.select(HojaDeRuta).where(
+            HojaDeRuta.conductor_id == current_user.id,
+            HojaDeRuta.estado == 'EN_RUTA'
+        ),
+        description="No tienes una ruta activa asignada."
+    )
+    
+    # Obtenemos todas las órdenes de la ruta para mostrarlas
+    ordenes_en_ruta = ruta.ordenes.order_by(Orden.numero_pedido).all()
+
+    return render_template(
+        'detalle_ruta_conductor.html',
+        ruta=ruta,
+        ordenes=ordenes_en_ruta
+    )
+
+@app.route('/orden/<int:orden_id>/actualizar-estado', methods=['POST'])
+@login_required
+@conductor_required
+def actualizar_estado_orden(orden_id):
+    # Verificamos que la orden pertenece a la ruta activa del conductor
+    orden = db.session.execute(db.select(Orden).join(Orden.hoja_de_ruta).where(
+        Orden.id == orden_id,
+        HojaDeRuta.conductor_id == current_user.id,
+        HojaDeRuta.estado == 'EN_RUTA'
+    )).scalar_one_or_none()
+    
+    if not orden:
+        flash("Error: Esta orden no pertenece a tu ruta activa.", "error")
+        return redirect(url_for('detalle_ruta_conductor'))
+
+    nuevo_estado = request.form.get('estado')
+    
+    # Nuevos estados posibles para el conductor
+    estados_validos = ['ENTREGADO', 'ENTREGA_FALLIDA']
+    if nuevo_estado in estados_validos:
+        orden.estado = nuevo_estado
+        db.session.commit()
+        flash(f"Estado de la orden #{orden.numero_pedido} actualizado a {nuevo_estado}.", "success")
+    else:
+        flash("Estado no válido.", "error")
+
+    return redirect(url_for('detalle_ruta_conductor'))
+
+@app.route('/mi-ruta/registrar-gasto', methods=['POST'])
+@login_required
+@conductor_required
+def registrar_gasto_conductor():
+    ruta_id = request.form.get('ruta_id')
+    monto = request.form.get('monto_gastado')
+    descripcion = request.form.get('descripcion')
+
+    if not all([ruta_id, monto, descripcion]):
+        flash("Todos los campos son obligatorios para registrar un gasto.", "error")
+        return redirect(url_for('detalle_ruta_conductor'))
+
+    nuevo_gasto = GastoViaje(
+        hoja_de_ruta_id=int(ruta_id),
+        monto_gastado=float(monto),
+        descripcion=descripcion
+    )
+    db.session.add(nuevo_gasto)
+    db.session.commit()
+    flash("Gasto registrado con éxito.", "success")
+    return redirect(url_for('detalle_ruta_conductor'))
+
+@app.route('/mi-ruta/registrar-pago', methods=['POST'])
+@login_required
+@conductor_required
+def registrar_pago_conductor():
+    ruta_id = request.form.get('ruta_id')
+    orden_id = request.form.get('orden_id')
+    monto = request.form.get('monto_recibido')
+    nota = request.form.get('nota')
+
+    if not all([ruta_id, orden_id, monto]):
+        flash("Ruta, orden y monto son obligatorios para registrar un pago.", "error")
+        return redirect(url_for('detalle_ruta_conductor'))
+        
+    nueva_transaccion = Transaccion(
+        hoja_de_ruta_id=int(ruta_id),
+        orden_id=int(orden_id),
+        monto_recibido=float(monto),
+        nota=nota
+    )
+    db.session.add(nueva_transaccion)
+    db.session.commit()
+    flash("Pago registrado con éxito.", "success")
+    return redirect(url_for('detalle_ruta_conductor'))
+
+@app.route('/mi-ruta/finalizar', methods=['POST'])
+@login_required
+@conductor_required
+def finalizar_ruta_conductor():
+    ruta_id = request.form.get('ruta_id')
+    ruta = db.get_or_404(HojaDeRuta, ruta_id)
+
+    # Seguridad: solo el conductor asignado puede finalizar su propia ruta
+    if ruta.conductor_id != current_user.id:
+        flash("No tienes permiso para finalizar esta ruta.", "error")
+        return redirect(url_for('dashboard_conductor'))
+
+    ruta.estado = 'FINALIZADA'
+    db.session.commit()
+    flash(f"Hoja de Ruta #{ruta.id} ha sido marcada como FINALIZADA.", "success")
+    return redirect(url_for('dashboard_conductor'))
+
+@app.route('/orden/<int:orden_id>/asignar-destino', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def asignar_destino(orden_id):
+    orden = db.get_or_404(Orden, orden_id)
+
+    if request.method == 'POST':
+        nombre_destino = request.form.get('destino', '').strip()
+
+        if not nombre_destino:
+            flash("El nombre del destino no puede estar vacío.", "error")
+            return redirect(url_for('asignar_destino', orden_id=orden_id))
+
+        # Buscamos si el destino ya existe
+        destino = db.session.execute(
+            db.select(Destino).filter_by(nombre=nombre_destino)
+        ).scalar_one_or_none()
+
+        # Si no existe, lo creamos
+        if not destino:
+            destino = Destino(nombre=nombre_destino)
+            db.session.add(destino)
+        
+        # Asignamos el destino a la orden (a través de la relación)
+        orden.destino = destino
+        db.session.commit()
+
+        flash(f"Destino '{nombre_destino}' asignado a la orden #{orden.numero_pedido}.", "success")
+        return redirect(url_for('dashboard_despacho'))
+
+    # Para el método GET, simplemente mostramos la página
+    return render_template('asignar_destino.html', orden=orden)
+
+
+@app.route('/api/destinos')
+@login_required
+@admin_required
+def api_destinos():
+    # Esta API devolverá todos los destinos para el autocompletado
+    destinos = db.session.execute(db.select(Destino).order_by(Destino.nombre)).scalars().all()
+    lista_nombres = [d.nombre for d in destinos]
+    return jsonify(lista_nombres)
 
 # 5. PUNTO DE ENTRADA
 if __name__ == '__main__':

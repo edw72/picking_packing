@@ -1,78 +1,33 @@
 {% extends "layout.html" %}
 
-{% block title %}
-    Dashboard de Despacho
-{% endblock %}
+{% block title %}Dashboard de Despacho{% endblock %}
 
 {% block styles %}
-    {# Reutilizamos exactamente los mismos estilos que en el dashboard de picking para mantener la coherencia #}
     <style>
         .estado { font-weight: bold; padding: 0.2em 0.5em; border-radius: 4px; color: white; display: inline-block; }
-        .estado-LISTO_PARA_DESPACHO { background-color: #337ab7; } /* Azul para indicar "listo" */
+        .estado-LISTO_PARA_DESPACHO { background-color: #337ab7; }
         table { width: 100%; border-collapse: collapse; margin-top: 1em; background-color: white; }
         th, td { border: 1px solid #ddd; padding: 0.8em; text-align: left; }
         th { background-color: #f8f9fa; }
-        tr:nth-child(even) { background-color: #f2f2f2; }
-        .action-link {
-            display: inline-block;
-            padding: 8px 15px;
-            font-size: 14px;
-            font-weight: bold;
-            color: white;
-            background-color: #f0ad4e; /* Naranja para la acción principal */
-            border: none;
-            border-radius: 5px;
-            text-decoration: none;
-            text-align: center;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        .action-link:hover {
-            background-color: #ec971f;
-            text-decoration: none;
-        }
-        .navegacion-modulos {
-            margin-bottom: 1.5em;
-            padding: 1em;
-            background-color: #e9ecef;
-            border-radius: 5px;
-            border: 1px solid #ced4da;
-        }
-        /* Estilos para los mensajes flash (pueden ir en layout.html si se usan en todas partes) */
-        .flash {
-            padding: 1rem;
-            margin-bottom: 1rem;
-            border: 1px solid transparent;
-            border-radius: .25rem;
-        }
-        .flash-success {
-            color: #155724;
-            background-color: #d4edda;
-            border-color: #c3e6cb;
-        }
-        .flash-error {
-            color: #721c24;
-            background-color: #f8d7da;
-            border-color: #f5c6cb;
-        }
+        .action-link { padding: 8px 15px; font-size: 14px; font-weight: bold; color: white; background-color: #f0ad4e; border-radius: 5px; text-decoration: none; text-align: center; }
+        .navegacion-modulos { margin-bottom: 1.5em; padding: 1em; background-color: #e9ecef; border-radius: 5px; }
     </style>
 {% endblock %}
 
 {% block content %}
-    <h1>Órdenes para Despacho</h1>
+    <h1>Órdenes en Espera de Ruta</h1>
+    <p>Estas órdenes están empacadas y listas. Asigne un destino para que puedan ser añadidas a una Hoja de Ruta.</p>
 
-      <!-- NAVEGACIÓN ENTRE MÓDULOS -->
     <div class="navegacion-modulos" style="margin-bottom: 2rem;">
         <strong>Módulos:</strong>
         <a href="{{ url_for('dashboard') }}">Picking</a> |
         <a href="{{ url_for('dashboard_packing') }}">Packing</a> |
-        <a href="{{ url_for('dashboard_despacho') }}" style="font-weight: bold; color: #337ab7;">Despacho</a> |
+        <a href="{{ url_for('dashboard_despacho') }}" style="font-weight: bold; color: #337ab7;">Despacho</a>
         {% if current_user.role == 'admin' %}
         | <a href="{{ url_for('reportes_y_busqueda') }}">Reportes</a>
         {% endif %}
     </div>
 
-    <!-- Mensajes Flash -->
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             {% for category, message in messages %}
@@ -86,27 +41,33 @@
             <tr>
                 <th>Pedido #</th>
                 <th>Cliente</th>
-                <th>Fecha Lote</th>
-                <th>Estado</th>
+                <th>Destino Asignado</th> <!-- Nueva Columna -->
                 <th>Acción</th>
             </tr>
         </thead>
         <tbody>
-            {% for orden in ordenes %}
+            {% for orden in ordenes_para_despacho %}
             <tr>
                 <td>{{ orden.numero_pedido }}</td>
                 <td>{{ orden.cliente_nombre }}</td>
-                <td>{{ orden.lote.fecha_creacion | localtime if orden.lote else 'N/A' }}</td>
                 <td>
-                    <span class="estado estado-{{ orden.estado }}">{{ orden.estado.replace('_', ' ') }}</span>
+                    <!-- Mostramos el destino si existe -->
+                    {% if orden.destino %}
+                        <strong>{{ orden.destino.nombre }}</strong>
+                    {% else %}
+                        <span style="color: #d9534f;">Pendiente</span>
+                    {% endif %}
                 </td>
                 <td>
-                    <a href="{{ url_for('detalle_despacho', orden_id=orden.id) }}" class="action-link">Gestionar Despacho</a>
+                    <!-- El enlace ahora apunta a la nueva página -->
+                    <a href="{{ url_for('asignar_destino', orden_id=orden.id) }}" class="action-link">
+                        {% if orden.destino %}Editar Destino{% else %}Asignar Destino{% endif %}
+                    </a>
                 </td>
             </tr>
             {% else %}
             <tr>
-                <td colspan="5" style="text-align: center; padding: 2em;">¡Excelente! No hay órdenes listas para despacho en este momento.</td>
+                <td colspan="4" style="text-align: center; padding: 2em;">¡Excelente! No hay órdenes listas para despacho en este momento.</td>
             </tr>
             {% endfor %}
         </tbody>

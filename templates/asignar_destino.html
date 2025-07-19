@@ -1,0 +1,59 @@
+{% extends "layout.html" %}
+
+{% block title %}Asignar Destino a Orden #{{ orden.numero_pedido }}{% endblock %}
+
+{% block styles %}
+<style>
+    .form-container { max-width: 600px; margin: 2em auto; background: white; padding: 2em; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    .form-group label { display: block; font-weight: bold; margin-bottom: 0.5rem; }
+    .form-group input { width: 100%; padding: 10px; font-size: 1.1rem; border-radius: 5px; border: 1px solid #ccc; }
+    .submit-btn { width: 100%; padding: 12px; font-size: 1.1rem; background-color: #337ab7; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 1rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <a href="{{ url_for('dashboard_despacho') }}" class="back-link">← Volver al Dashboard de Despacho</a>
+    
+    <h1>Asignar Destino</h1>
+    <p><strong>Orden:</strong> #{{ orden.numero_pedido }}<br>
+       <strong>Cliente:</strong> {{ orden.cliente_nombre }}</p>
+    
+    {% if orden.destino %}
+        <div class="flash flash-info">
+            Esta orden ya tiene un destino asignado: <strong>{{ orden.destino.nombre }}</strong>. Puede cambiarlo si es necesario.
+        </div>
+    {% endif %}
+
+    <form method="POST">
+        <div class="form-group">
+            <label for="destino-input">Destino de la Entrega</label>
+            <input type="text" id="destino-input" name="destino" list="destinos-list" required autocomplete="off" value="{{ orden.destino.nombre if orden.destino else '' }}">
+            <datalist id="destinos-list">
+                <!-- Las opciones se llenarán con JavaScript -->
+            </datalist>
+        </div>
+        <button type="submit" class="submit-btn">Guardar Destino</button>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Script para cargar las opciones del datalist desde nuestra API
+    document.addEventListener('DOMContentLoaded', function() {
+        const datalist = document.getElementById('destinos-list');
+
+        fetch("{{ url_for('api_destinos') }}")
+            .then(response => response.json())
+            .then(data => {
+                data.forEach(nombreDestino => {
+                    const option = document.createElement('option');
+                    option.value = nombreDestino;
+                    datalist.appendChild(option);
+                });
+            })
+            .catch(error => console.error('Error al cargar destinos:', error));
+    });
+</script>
+{% endblock %}
