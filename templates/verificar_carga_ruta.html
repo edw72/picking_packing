@@ -1,0 +1,126 @@
+{% extends "layout.html" %}
+
+{% block title %}Verificar Carga de Ruta #{{ ruta.id }}{% endblock %}
+
+{% block styles %}
+<style>
+    .container { max-width: 800px; margin: 2em auto; }
+    .card { background: white; padding: 2em; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    h1 { border-bottom: 2px solid #eee; padding-bottom: 0.5em; }
+    .scan-area { margin-bottom: 2rem; }
+    .scan-input { width: 100%; padding: 15px; font-size: 1.5rem; text-align: center; border-radius: 5px; border: 2px solid #ccc; }
+    .bulto-list li {
+        display: flex; justify-content: space-between; align-items: center; padding: 1rem;
+        border: 1px solid #ddd; margin-bottom: 0.5rem; border-radius: 5px; transition: all 0.3s;
+    }
+    .bulto-id { font-weight: bold; font-family: monospace; font-size: 1.2rem; }
+    .bulto-status { font-weight: bold; padding: 5px 10px; border-radius: 15px; color: white; }
+    .status-pendiente { background-color: #f0ad4e; }
+    .status-verificado { background-color: #5cb85c; }
+    .bulto-list li.verificado { background-color: #f2fdf2; border-left: 5px solid #5cb85c; }
+    .finalizar-btn { background-color: #28a745; color: white; padding: 15px 30px; font-size: 18px; border: none; border-radius: 5px; cursor: pointer; width: 100%; }
+    .finalizar-btn:disabled { background-color: #ccc; cursor: not-allowed; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <a href="{{ url_for('detalle_ruta', ruta_id=ruta.id) }}">← Volver al Detalle de la Ruta</a>
+
+    <div class="card" style="margin-top: 1rem;">
+        <h1>Verificación de Carga para Ruta #{{ ruta.id }}</h1>
+        <p>Escanee el código QR de cada bulto mientras se entrega al conductor para confirmar la salida.</p>
+
+        <div class="scan-area">
+            <input type="text" id="scan-input-carga" class="scan-input" placeholder="Escanear QR del bulto..." autofocus>
+        </div>
+        
+        <h2>Bultos a Verificar ({{ bultos|length }})</h2>
+        <ul id="bulto-list-carga" class="bulto-list">
+            {% for bulto in bultos %}
+            <li id="bulto-{{ bulto.identificador_unico }}">
+                <span class="bulto-id">{{ bulto.identificador_unico }}</span>
+                <span class="bulto-status status-pendiente">Pendiente</span>
+            </li>
+            {% endfor %}
+        </ul>
+
+        <div style="margin-top: 2rem;">
+             <form action="{{ url_for('confirmar_salida_ruta', ruta_id=ruta.id) }}" method="POST">
+                <button type="submit" id="finalizar-btn-carga" class="finalizar-btn" disabled>Confirmar Salida y Poner en Ruta</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const scanInput = document.getElementById('scan-input-carga');
+    const bultoList = document.getElementById('bulto-list-carga');
+    const finalizarBtn = document.getElementById('finalizar-btn-carga');
+    const totalBultos = {{ bultos|length }};
+    let bultosVerificados = 0;
+
+    const audioSuccess = new Audio("{{ url_for('static', filename='sounds/success.mp3') }}");
+    const audioError = new Audio("{{ url_for('static', filename='sounds/error.mp3') }}");
+
+    scanInput.addEventListener('change', function() {
+        const identificador = this.value.trim();
+        if (!identificador) return;
+
+        fetch("{{ url_for('api_escanear_bulto_carga', ruta_id=ruta.id) }}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ identificador_unico: identificador })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                const bultoVerificado = document.getElementById(`bulto-${data.identificador_verificado}`);
+                if (bultoVerificado && !bultoVerificado.classList.contains('verificado')) {
+                    audioSuccess.play().catch(e => {});
+                    updateBultoUI(data.identificador_verificado);
+                    checkIfComplete();
+                } else {
+                    // Si ya estaba verificado, solo damos un feedback suave
+                    scanInput.style.borderColor = '#f0ad4e';
+                    setTimeout(() => { scanInput.style.borderColor = '#ccc'; }, 1000);
+                }
+            } else {
+                audioError.play().catch(e => {});
+                alert(data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error de conexión con el servidor.');
+        })
+        .finally(() => {
+            this.value = '';
+            this.focus();
+        });
+    });
+
+    function updateBultoUI(identificador) {
+        const li = document.getElementById(`bulto-${identificador}`);
+        if (li) {
+            li.classList.add('verificado');
+            const statusSpan = li.querySelector('.bulto-status');
+            statusSpan.textContent = 'Verificado';
+            statusSpan.classList.remove('status-pendiente');
+            statusSpan.classList.add('status-verificado');
+            bultosVerificados++;
+        }
+    }
+
+    function checkIfComplete() {
+        if (bultosVerificados === totalBultos) {
+            finalizarBtn.disabled = false;
+            scanInput.disabled = true;
+            scanInput.placeholder = "¡Verificación completa!";
+        }
+    }
+});
+</script>
+{% endblock %}

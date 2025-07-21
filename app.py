@@ -90,6 +90,7 @@ class Orden(db.Model):
     hoja_de_ruta_id = db.Column(db.Integer, db.ForeignKey('hoja_de_ruta.id'), nullable=True)
     destino_id = db.Column(db.Integer, db.ForeignKey('destino.id'), nullable=True)
     destino = db.relationship('Destino', backref='ordenes')
+    guia_encomienda = db.Column(db.String(100), nullable=True)
     def __repr__(self): return f'<Orden {self.numero_pedido}>'
 
 class User(UserMixin, db.Model):
@@ -156,6 +157,7 @@ class HojaDeRuta(db.Model):
     ordenes = db.relationship('Orden', backref='hoja_de_ruta', lazy='dynamic')
     transacciones = db.relationship('Transaccion', backref='hoja_de_ruta', lazy='dynamic', cascade="all, delete-orphan")
     gastos_viaje = db.relationship('GastoViaje', backref='hoja_de_ruta', lazy='dynamic', cascade="all, delete-orphan")
+    fecha_finalizacion = db.Column(db.DateTime, nullable=True)
     
     ### --- INICIO: CAMBIOS PARA RUTAS EXTERNAS --- ###
     
@@ -917,12 +919,26 @@ def qr_code_generator(identificador_unico):
     
 
     
+# En app.py, reemplaza esta función completa
+
 @app.route('/despacho')
 @login_required
 def dashboard_despacho():
-    """Muestra el dashboard con las órdenes listas para ser despachadas."""
-    ordenes_para_despacho = Orden.query.filter_by(estado='LISTO_PARA_DESPACHO').order_by(Orden.fecha_creacion.asc()).all()
-    return render_template('dashboard_despacho.html', ordenes=ordenes_para_despacho)
+    """
+    Muestra el dashboard con las órdenes listas para ser despachadas
+    y a la espera de que se les asigne un destino.
+    """
+    # La consulta para buscar las órdenes es correcta.
+    ordenes_para_despacho = db.session.execute(
+        db.select(Orden).filter_by(estado='LISTO_PARA_DESPACHO').order_by(Orden.fecha_creacion.asc())
+    ).scalars().all()
+    
+    # --- LA CORRECCIÓN ESTÁ AQUÍ ---
+    # Aseguramos que el nombre de la variable en el template coincida.
+    return render_template(
+        'dashboard_despacho.html', 
+        ordenes_para_despacho=ordenes_para_despacho
+    )
 
 @app.route('/despacho/<int:orden_id>')
 @login_required
@@ -1548,30 +1564,16 @@ def quitar_orden_de_ruta(orden_id):
 def iniciar_ruta(ruta_id):
     ruta = db.get_or_404(HojaDeRuta, ruta_id)
 
-    # --- Validación ---
-    # 1. No se puede iniciar una ruta que no esté en preparación
     if ruta.estado != 'EN_PREPARACION':
-        flash('Esta ruta no se puede iniciar porque no está en estado de "Preparación".', 'error')
+        flash('Esta ruta ya no está en preparación.', 'error')
         return redirect(url_for('detalle_ruta', ruta_id=ruta.id))
 
-    # 2. No tiene sentido enviar una ruta vacía
     if not ruta.ordenes.count() > 0:
         flash('No se puede iniciar una ruta vacía. Añada al menos una orden.', 'error')
         return redirect(url_for('detalle_ruta', ruta_id=ruta.id))
 
-    # --- Actualización de Estados ---
-    # 1. Cambiar el estado de la Hoja de Ruta
-    ruta.estado = 'EN_RUTA'
-    
-    # 2. Cambiar el estado de todas las órdenes contenidas y registrar la fecha de despacho
-    for orden in ruta.ordenes:
-        orden.estado = 'DESPACHADO' # O podríamos crear un nuevo estado 'EN_REPARTO' en el futuro
-        orden.fecha_despacho = datetime.datetime.utcnow()
-
-    db.session.commit()
-
-    flash(f'¡La Ruta #{ruta.id} ha iniciado! Las órdenes han sido marcadas como despachadas.', 'success')
-    return redirect(url_for('detalle_ruta', ruta_id=ruta.id))
+    # Redirigimos a la nueva página de verificación
+    return redirect(url_for('verificar_carga_ruta', ruta_id=ruta.id))
 
 
 
@@ -1783,6 +1785,87 @@ def api_destinos():
     destinos = db.session.execute(db.select(Destino).order_by(Destino.nombre)).scalars().all()
     lista_nombres = [d.nombre for d in destinos]
     return jsonify(lista_nombres)
+
+
+@app.route('/ruta/<int:ruta_id>/verificar-carga', methods=['GET'])
+@login_required
+@admin_required
+def verificar_carga_ruta(ruta_id):
+    ruta = db.get_or_404(HojaDeRuta, ruta_id)
+    if ruta.estado != 'EN_PREPARACION':
+        flash("Esta ruta no puede ser verificada porque no está en preparación.", "warning")
+        return redirect(url_for('detalle_ruta', ruta_id=ruta.id))
+    
+    # Limpiamos la sesión de verificación anterior para esta ruta
+    session.pop(f'carga_verificada_{ruta_id}', None)
+
+    # Obtenemos todos los bultos de todas las órdenes de la ruta
+    bultos_en_ruta = db.session.execute(
+        db.select(Bulto).join(Bulto.orden).where(Orden.hoja_de_ruta_id == ruta.id)
+    ).scalars().all()
+    
+    return render_template('verificar_carga_ruta.html', ruta=ruta, bultos=bultos_en_ruta)
+
+
+@app.route('/api/ruta/<int:ruta_id>/escanear-bulto', methods=['POST'])
+@login_required
+@admin_required
+def api_escanear_bulto_carga(ruta_id):
+    data = request.get_json()
+    identificador_escaneado = data.get('identificador_unico', '').strip()
+
+    # Verificamos que el bulto escaneado realmente pertenece a esta ruta
+    bulto = db.session.execute(db.select(Bulto).join(Bulto.orden).where(
+        Bulto.identificador_unico == identificador_escaneado,
+        Orden.hoja_de_ruta_id == ruta_id
+    )).scalar_one_or_none()
+
+    if not bulto:
+        return jsonify({
+            'success': False, 
+            'message': f'¡Bulto incorrecto! El bulto {identificador_escaneado} no pertenece a esta ruta.'
+        }), 422
+
+    # Guardamos los bultos verificados en la sesión
+    session_key = f'carga_verificada_{ruta_id}'
+    bultos_verificados = session.get(session_key, [])
+    if identificador_escaneado not in bultos_verificados:
+        bultos_verificados.append(identificador_escaneado)
+        session[session_key] = bultos_verificados
+
+    return jsonify({
+        'success': True,
+        'message': f'Bulto {bulto.identificador_unico} verificado.',
+        'identificador_verificado': bulto.identificador_unico
+    })
+    
+    
+@app.route('/ruta/<int:ruta_id>/confirmar-salida', methods=['POST'])
+@login_required
+@admin_required
+def confirmar_salida_ruta(ruta_id):
+    ruta = db.get_or_404(HojaDeRuta, ruta_id)
+    
+    # Doble verificación de seguridad
+    session_key = f'carga_verificada_{ruta_id}'
+    bultos_verificados = session.get(session_key, [])
+    total_bultos_en_ruta = db.session.scalar(db.select(func.count(Bulto.id)).join(Bulto.orden).where(Orden.hoja_de_ruta_id == ruta.id))
+
+    if len(bultos_verificados) != total_bultos_en_ruta:
+        flash("Error de seguridad: No todos los bultos de la ruta han sido verificados.", "error")
+        return redirect(url_for('verificar_carga_ruta', ruta_id=ruta.id))
+
+    # Actualizamos los estados
+    ruta.estado = 'EN_RUTA'
+    for orden in ruta.ordenes:
+        orden.estado = 'DESPACHADO'
+        orden.fecha_despacho = datetime.datetime.utcnow()
+    
+    db.session.commit()
+    session.pop(session_key, None) # Limpiamos la sesión
+
+    flash(f'¡La Ruta #{ruta.id} ha iniciado con éxito!', 'success')
+    return redirect(url_for('detalle_ruta', ruta_id=ruta.id))    
 
 # 5. PUNTO DE ENTRADA
 if __name__ == '__main__':
