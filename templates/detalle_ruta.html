@@ -5,42 +5,41 @@
 {% block styles %}
 <style>
     .ruta-header {
-        background: white;
-        padding: 1.5rem;
-        border-radius: 8px;
-        margin-bottom: 2rem;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
+        background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: flex;
+        justify-content: space-between; align-items: center;
     }
-    .ruta-header h1 { margin-top: 0; margin-bottom: 0; }
-    .ruta-grid {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 2rem;
-    }
-    @media (min-width: 992px) { .ruta-grid { grid-template-columns: 1fr 1fr; } }
+    .ruta-header h1 { margin: 0; }
+    .ruta-grid { display: grid; grid-template-columns: 1fr; gap: 2rem; }
+    @media (min-width: 1200px) { .ruta-grid { grid-template-columns: 1fr 1fr; } }
     
-    .grid-column {
-        background: white;
-        padding: 1.5rem;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
+    .grid-column { background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
     .grid-column h2 { margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 0.5rem; }
+    
     table { width: 100%; border-collapse: collapse; margin-top: 1em; }
     th, td { border-bottom: 1px solid #ddd; padding: 0.8em; text-align: left; vertical-align: middle; }
     th { background-color: #f8f9fa; }
-    tr:hover { background-color: #f9f9f9; }
     
-    .action-btn {
-        padding: 12px 25px; font-size: 16px; color: white; border: none; 
+    .action-btn, .submit-btn, .remove-btn, .start-route-btn {
+        padding: 8px 15px; font-size: 14px; color: white; border: none; 
         border-radius: 5px; cursor: pointer; text-decoration: none;
     }
     .submit-btn { background-color: #28a745; margin-top: 1.5em; }
-    .remove-btn { background-color: #d9534f; font-size: 12px; padding: 5px 10px; }
+    .remove-btn { background-color: #d9534f; }
     .start-route-btn { background-color: #337ab7; }
+
+    /* --- Nuevos Estilos para el Panel de Monitoreo --- */
+    .resumen-financiero { text-align: center; margin-bottom: 2rem; }
+    .resumen-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; }
+    .resumen-financiero .valor { font-size: 1.8rem; font-weight: bold; margin-bottom: 0.5rem; }
+    .resumen-financiero .etiqueta { font-size: 0.9rem; text-transform: uppercase; color: #777; }
+    .balance-positivo { color: #28a745; }
+    .balance-negativo { color: #d9534f; }
+    
+    .estado-DESPACHADO { background-color: #337ab7; color: white; padding: 0.2em 0.5em; border-radius: 4px; }
+    .estado-ENTREGADO { background-color: #5cb85c; color: white; padding: 0.2em 0.5em; border-radius: 4px; }
+    .estado-ENTREGA_FALLIDA { background-color: #d9534f; color: white; padding: 0.2em 0.5em; border-radius: 4px; }
+    .guia-info { font-style: italic; color: #555; font-size: 0.9em; }
 </style>
 {% endblock %}
 
@@ -53,25 +52,25 @@
         <p style="margin:0; color:#555;">
             <strong>
                 {% if ruta.tipo_entrega == 'INTERNA' %}
-                    Conductor: {{ ruta.conductor.username }}
+                    Conductor: {{ ruta.conductor.username if ruta.conductor else 'N/A' }}
                 {% else %}
                     Transportista: {{ ruta.nombre_transportista }}
                 {% endif %}
             </strong> | 
-            Estado: {{ ruta.estado.replace('_', ' ') }} | 
-            Gastos Asignados: ¢{{ '%.2f'|format(ruta.gastos_asignados) }}
+            Estado: {{ ruta.estado.replace('_', ' ') }}
+            {% if ruta.fecha_finalizacion %}
+                (Finalizada: {{ ruta.fecha_finalizacion|localtime }})
+            {% endif %}
         </p>
     </div>
     
-    <!-- === INICIO: Botón de Acción Condicional === -->
     <div>
         {% if ruta.estado == 'EN_PREPARACION' %}
-        <form action="{{ url_for('iniciar_ruta', ruta_id=ruta.id) }}" method="POST" onsubmit="return confirm('¿Está seguro de que desea iniciar esta ruta? Esta acción es irreversible y marcará todas las órdenes como despachadas.');">
-            <button type="submit" class="action-btn start-route-btn">Iniciar Ruta</button>
+        <form action="{{ url_for('iniciar_ruta', ruta_id=ruta.id) }}" method="POST" onsubmit="return confirm('¿Está seguro? Esta acción llevará a la pantalla de verificación de carga.');">
+            <button type="submit" class="action-btn start-route-btn">Verificar e Iniciar Ruta</button>
         </form>
         {% endif %}
     </div>
-    <!-- === FIN: Botón de Acción === -->
 </div>
 
 {% with messages = get_flashed_messages(with_categories=true) %}
@@ -82,14 +81,62 @@
     {% endif %}
 {% endwith %}
 
-<!-- === INICIO: Lógica de Vista Condicional === -->
-{% if ruta.estado == 'EN_PREPARACION' %}
+<!-- === INICIO: Resumen Financiero === -->
+<div class="grid-column resumen-financiero">
+    <h2>Resumen Financiero</h2>
+    <div class="resumen-grid">
+        <div>
+            <div class="valor">¢{{ '%.2f'|format(ruta.gastos_asignados) }}</div>
+            <div class="etiqueta">Dinero Asignado</div>
+        </div>
+        <div>
+            <div class="valor">¢{{ '%.2f'|format(total_recibido) }}</div>
+            <div class="etiqueta">Pagos Recibidos</div>
+        </div>
+        <div>
+            <div class="valor">- ¢{{ '%.2f'|format(total_gastado) }}</div>
+            <div class="etiqueta">Gastos Reportados</div>
+        </div>
+        <div>
+            <div class="valor {{ 'balance-positivo' if balance >= 0 else 'balance-negativo' }}">¢{{ '%.2f'|format(balance) }}</div>
+            <div class="etiqueta">Balance a Liquidar</div>
+        </div>
+    </div>
+</div>
+<!-- === FIN: Resumen Financiero === -->
 
-    <!-- MODO EDICIÓN: Si la ruta está en preparación, mostramos las dos columnas para gestionarla -->
-    <div class="ruta-grid">
-        <!-- Columna Izquierda: Órdenes Disponibles -->
-        <div class="grid-column">
-            <h2>Órdenes Listas para Asignar</h2>
+<div class="ruta-grid" style="margin-top: 2rem;">
+    <!-- Columna Izquierda: Órdenes -->
+    <div class="grid-column">
+        <h2>Órdenes en la Ruta ({{ ordenes_asignadas|length }})</h2>
+        {% if ordenes_asignadas %}
+        <table>
+             <thead> <tr> <th>Pedido #</th> <th>Cliente y Destino</th> <th>Estado Actual</th> <th>Info Adicional</th> </tr> </thead>
+            <tbody>
+                {% for orden in ordenes_asignadas %}
+                <tr>
+                    <td>{{ orden.numero_pedido }}</td>
+                    <td>
+                        <strong>{{ orden.cliente_nombre }}</strong><br>
+                        <small>{{ orden.destino.nombre if orden.destino else 'Destino no asignado' }}</small>
+                    </td>
+                    <td><span class="estado-{{ orden.estado }}">{{ orden.estado.replace('_', ' ') }}</span></td>
+                    <td>
+                        {% if orden.guia_encomienda %}
+                            <div class="guia-info">Guía: {{ orden.guia_encomienda }}</div>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>Aún no se han añadido órdenes a esta hoja de ruta.</p>
+        {% endif %}
+
+        <!-- Mostramos la caja de añadir órdenes solo si la ruta está en preparación -->
+        {% if ruta.estado == 'EN_PREPARACION' %}
+            <h3 style="margin-top: 2rem;">Añadir Órdenes Disponibles</h3>
             <form action="{{ url_for('agregar_ordenes_a_ruta', ruta_id=ruta.id) }}" method="POST">
                 {% if ordenes_disponibles %}
                 <table>
@@ -106,61 +153,46 @@
                 </table>
                 <button type="submit" class="action-btn submit-btn">Añadir Seleccionadas</button>
                 {% else %}
-                <p>No hay órdenes disponibles para asignar en este momento.</p>
+                <p>No hay más órdenes disponibles para asignar.</p>
                 {% endif %}
             </form>
-        </div>
-
-        <!-- Columna Derecha: Órdenes Asignadas -->
-        <div class="grid-column">
-            <h2>Órdenes en esta Ruta ({{ ordenes_asignadas|length }})</h2>
-            {% if ordenes_asignadas %}
-            <table>
-                 <thead> <tr> <th>Pedido #</th> <th>Cliente</th> <th>Acción</th> </tr> </thead>
-                <tbody>
-                    {% for orden in ordenes_asignadas %}
-                    <tr>
-                        <td>{{ orden.numero_pedido }}</td>
-                        <td>{{ orden.cliente_nombre }}</td>
-                        <td>
-                            <form action="{{ url_for('quitar_orden_de_ruta', orden_id=orden.id) }}" method="POST">
-                                <button type="submit" class="remove-btn">Quitar</button>
-                            </form>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            {% else %}
-            <p>Aún no se han añadido órdenes a esta hoja de ruta.</p>
-            {% endif %}
-        </div>
-    </div>
-
-{% else %}
-
-    <!-- MODO LECTURA: Si la ruta ya inició, solo mostramos un resumen -->
-    <div class="grid-column">
-        <h2>Resumen de Órdenes en Ruta ({{ ordenes_asignadas|length }})</h2>
-        {% if ordenes_asignadas %}
-        <table>
-             <thead> <tr> <th>Pedido #</th> <th>Cliente</th> <th>Bultos</th> </tr> </thead>
-            <tbody>
-                {% for orden in ordenes_asignadas %}
-                <tr>
-                    <td>{{ orden.numero_pedido }}</td>
-                    <td>{{ orden.cliente_nombre }}</td>
-                    <td>{{ orden.bultos|length }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-        <p>Esta hoja de ruta no contenía órdenes.</p>
         {% endif %}
     </div>
 
-{% endif %}
-<!-- === FIN: Lógica de Vista Condicional === -->
-
+    <!-- Columna Derecha: Movimientos Financieros -->
+    <div class="grid-column">
+        <h2>Movimientos de Dinero</h2>
+        <h4>Pagos Recibidos</h4>
+        {% if transacciones %}
+            <table>
+                <tbody>
+                {% for t in transacciones %}
+                    <tr>
+                        <td><strong>¢{{ '%.2f'|format(t.monto_recibido) }}</strong> de Orden #{{ t.orden.numero_pedido }}</td>
+                        <td><small>{{ t.nota }}</small></td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>No se han registrado pagos.</p>
+        {% endif %}
+        
+        <h4 style="margin-top: 2rem;">Gastos del Viaje</h4>
+        {% if gastos %}
+            <table>
+                <tbody>
+                {% for g in gastos %}
+                    <tr>
+                        <td><strong>- ¢{{ '%.2f'|format(g.monto_gastado) }}</strong></td>
+                        <td>{{ g.descripcion }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>No se han registrado gastos.</p>
+        {% endif %}
+    </div>
+</div>
 {% endblock %}

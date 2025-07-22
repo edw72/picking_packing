@@ -1091,10 +1091,12 @@ def reportes_y_busqueda():
 @admin_required
 def gestionar_rutas():
     if request.method == 'POST':
-        # --- Datos comunes ---
+        # --- 1. Obtener datos comunes del formulario ---
         tipo_entrega = request.form.get('tipo_entrega')
+        # Limpiamos el input de gastos para que acepte comas y puntos
         gastos_str = request.form.get('gastos_asignados', '0').replace(',', '.')
         
+        # --- 2. Validar los gastos asignados ---
         try:
             gastos = float(gastos_str)
             if gastos < 0:
@@ -1104,40 +1106,54 @@ def gestionar_rutas():
             flash('El valor de los gastos asignados no es un número válido.', 'error')
             return redirect(url_for('gestionar_rutas'))
 
-        # --- Lógica dinámica según el tipo de entrega ---
+        # --- 3. Crear el objeto base de la Hoja de Ruta ---
         nueva_ruta = HojaDeRuta(gastos_asignados=gastos, tipo_entrega=tipo_entrega)
 
+        # --- 4. Lógica dinámica según el tipo de entrega ---
         if tipo_entrega == 'INTERNA':
             conductor_id = request.form.get('conductor_id')
             if not conductor_id:
                 flash('Debe seleccionar un conductor para una ruta interna.', 'error')
                 return redirect(url_for('gestionar_rutas'))
+            # Asignamos el conductor a la nueva ruta
             nueva_ruta.conductor_id = int(conductor_id)
 
         elif tipo_entrega == 'EXTERNA':
             nombre_transportista = request.form.get('nombre_transportista')
             nombre_receptor = request.form.get('nombre_receptor')
             id_receptor = request.form.get('id_receptor')
+            
             if not all([nombre_transportista, nombre_receptor, id_receptor]):
                 flash('Para una entrega externa, todos los campos de transportista son obligatorios.', 'error')
                 return redirect(url_for('gestionar_rutas'))
+            
+            # Asignamos los datos del transportista a la nueva ruta
             nueva_ruta.nombre_transportista = nombre_transportista
             nueva_ruta.nombre_receptor = nombre_receptor
             nueva_ruta.id_receptor = id_receptor
+            
+            # REGLA DE NEGOCIO: Las rutas externas se consideran finalizadas de inmediato
+            nueva_ruta.estado = 'FINALIZADA'
+            nueva_ruta.fecha_finalizacion = datetime.datetime.utcnow()
         
         else:
             flash('Tipo de entrega no válido.', 'error')
             return redirect(url_for('gestionar_rutas'))
 
-        # --- Guardar en la BD ---
+        # --- 5. Guardar la nueva Hoja de Ruta en la Base de Datos ---
         db.session.add(nueva_ruta)
         db.session.commit()
+        
         flash(f'Hoja de Ruta #{nueva_ruta.id} ({tipo_entrega}) creada con éxito.', 'success')
+        # Redirigimos para usar el patrón Post/Redirect/Get y limpiar el formulario
         return redirect(url_for('gestionar_rutas'))
 
-    # --- Lógica para GET (sin cambios) ---
+    # --- Lógica para GET (cuando se carga la página por primera vez) ---
+    # Usamos joinedload para cargar eficientemente el conductor y evitar consultas N+1
     rutas_query = db.select(HojaDeRuta).options(joinedload(HojaDeRuta.conductor)).order_by(HojaDeRuta.fecha_creacion.desc())
     rutas = db.session.execute(rutas_query).scalars().all()
+    
+    # Obtenemos la lista de conductores para poblar el dropdown del formulario
     conductores = db.session.execute(db.select(User).filter_by(role='conductor').order_by(User.username)).scalars().all()
     
     return render_template('gestionar_rutas.html', rutas=rutas, conductores=conductores)
@@ -1496,24 +1512,51 @@ def generar_pdf_etiquetas(orden_id):
 @login_required
 @admin_required
 def detalle_ruta(ruta_id):
-    # Buscamos la hoja de ruta específica o mostramos un error 404
-    ruta = HojaDeRuta.query.get_or_404(ruta_id)
+    # 1. Buscamos la hoja de ruta y cargamos eficientemente el conductor
+    ruta_query = db.select(HojaDeRuta).where(HojaDeRuta.id == ruta_id).options(joinedload(HojaDeRuta.conductor))
+    ruta = db.session.execute(ruta_query).scalar_one_or_none()
+    if not ruta:
+        abort(404)
 
-    # La consulta para las órdenes disponibles es la clave aquí:
-    # Deben estar LISTAS_PARA_DESPACHO y no tener ninguna hoja_de_ruta_id asignada.
-    ordenes_disponibles = Orden.query.filter(
-        Orden.estado == 'LISTO_PARA_DESPACHO',
-        Orden.hoja_de_ruta_id.is_(None)
-    ).order_by(Orden.fecha_creacion.asc()).all()
+    # 2. Obtenemos las órdenes asignadas a esta ruta, cargando también su destino
+    ordenes_asignadas = db.session.execute(
+        db.select(Orden).where(Orden.hoja_de_ruta_id == ruta.id)
+        .options(joinedload(Orden.destino))
+        .order_by(Orden.numero_pedido)
+    ).scalars().all()
 
-    # Las órdenes ya asignadas las obtenemos directamente de la relación
-    ordenes_asignadas = ruta.ordenes.order_by(Orden.numero_pedido).all()
+    # 3. (Solo si la ruta está en preparación) Obtenemos las órdenes disponibles
+    ordenes_disponibles = []
+    if ruta.estado == 'EN_PREPARACION':
+        ordenes_disponibles = db.session.execute(db.select(Orden).filter(
+            Orden.estado == 'LISTO_PARA_DESPACHO',
+            Orden.hoja_de_ruta_id.is_(None)
+        ).order_by(Orden.fecha_creacion.asc())).scalars().all()
+
+    # --- INICIO: NUEVA LÓGICA DE CÁLCULOS FINANCIEROS Y DE DATOS ---
+    
+    # 4. Obtenemos todas las transacciones (pagos) y gastos de esta ruta
+    transacciones_ruta = db.session.execute(db.select(Transaccion).where(Transaccion.hoja_de_ruta_id == ruta.id)).scalars().all()
+    gastos_ruta = db.session.execute(db.select(GastoViaje).where(GastoViaje.hoja_de_ruta_id == ruta.id)).scalars().all()
+
+    # 5. Calculamos los totales y el balance
+    total_recibido = sum(t.monto_recibido for t in transacciones_ruta)
+    total_gastado = sum(g.monto_gastado for g in gastos_ruta)
+    balance = (ruta.gastos_asignados + total_recibido) - total_gastado
+
+    # --- FIN: NUEVA LÓGICA ---
 
     return render_template(
         'detalle_ruta.html', 
         ruta=ruta, 
         ordenes_asignadas=ordenes_asignadas,
-        ordenes_disponibles=ordenes_disponibles
+        ordenes_disponibles=ordenes_disponibles,
+        # Pasamos los nuevos datos a la plantilla
+        transacciones=transacciones_ruta,
+        gastos=gastos_ruta,
+        total_recibido=total_recibido,
+        total_gastado=total_gastado,
+        balance=balance
     )
     
 @app.route('/ruta/<int:ruta_id>/agregar-ordenes', methods=['POST'])
@@ -1645,11 +1688,24 @@ def detalle_ruta_conductor():
     
     # Obtenemos todas las órdenes de la ruta para mostrarlas
     ordenes_en_ruta = ruta.ordenes.order_by(Orden.numero_pedido).all()
+    total_gastado = db.session.scalar(
+        db.select(func.sum(GastoViaje.monto_gastado)).where(GastoViaje.hoja_de_ruta_id == ruta.id)
+    ) or 0.0
+    
+    total_recibido = db.session.scalar(
+        db.select(func.sum(Transaccion.monto_recibido)).where(Transaccion.hoja_de_ruta_id == ruta.id)
+    ) or 0.0
+    
+    balance = (ruta.gastos_asignados + total_recibido) - total_gastado
+    ### --- FIN: Cálculos financieros --- ###
 
     return render_template(
         'detalle_ruta_conductor.html',
         ruta=ruta,
-        ordenes=ordenes_en_ruta
+        ordenes=ordenes_en_ruta,
+        total_gastado=total_gastado,
+        total_recibido=total_recibido,
+        balance=balance
     )
 
 @app.route('/orden/<int:orden_id>/actualizar-estado', methods=['POST'])
@@ -1739,13 +1795,14 @@ def finalizar_ruta_conductor():
         return redirect(url_for('dashboard_conductor'))
 
     ruta.estado = 'FINALIZADA'
+    ruta.fecha_finalizacion = datetime.datetime.utcnow()
     db.session.commit()
     flash(f"Hoja de Ruta #{ruta.id} ha sido marcada como FINALIZADA.", "success")
     return redirect(url_for('dashboard_conductor'))
 
+
 @app.route('/orden/<int:orden_id>/asignar-destino', methods=['GET', 'POST'])
 @login_required
-@admin_required
 def asignar_destino(orden_id):
     orden = db.get_or_404(Orden, orden_id)
 
@@ -1865,7 +1922,23 @@ def confirmar_salida_ruta(ruta_id):
     session.pop(session_key, None) # Limpiamos la sesión
 
     flash(f'¡La Ruta #{ruta.id} ha iniciado con éxito!', 'success')
-    return redirect(url_for('detalle_ruta', ruta_id=ruta.id))    
+    return redirect(url_for('detalle_ruta', ruta_id=ruta.id))  
+
+@app.route('/orden/<int:orden_id>/guardar-guia', methods=['POST'])
+@login_required
+@conductor_required
+def guardar_guia_encomienda(orden_id):
+    orden = db.get_or_404(Orden, orden_id)
+    # Seguridad: Asegurarse de que la orden pertenece a la ruta activa del conductor
+    if not orden.hoja_de_ruta or orden.hoja_de_ruta.conductor_id != current_user.id or orden.hoja_de_ruta.estado != 'EN_RUTA':
+        flash("No tienes permiso para modificar esta orden.", "error")
+    else:
+        guia = request.form.get('guia_encomienda')
+        orden.guia_encomienda = guia
+        db.session.commit()
+        flash(f"Guía de encomienda para la orden #{orden.numero_pedido} guardada.", "success")
+    
+    return redirect(url_for('detalle_ruta_conductor'))  
 
 # 5. PUNTO DE ENTRADA
 if __name__ == '__main__':

@@ -7,36 +7,56 @@
     .card { background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem; }
     h2 { border-bottom: 2px solid #eee; padding-bottom: 0.5rem; margin-bottom: 1rem; }
     .orden-card { border: 1px solid #ddd; border-left: 5px solid #337ab7; border-radius: 5px; padding: 1rem; margin-bottom: 1rem; }
-    .orden-header { display: flex; justify-content: space-between; align-items: center; }
+    .orden-header { display: flex; justify-content: space-between; align-items: flex-start; }
     .orden-header h3 { margin: 0; font-size: 1.2rem; }
-    .estado-ENTREGADO { background-color: #5cb85c; color: white; padding: 0.2em 0.5em; border-radius: 4px; }
-    .estado-ENTREGA_FALLIDA { background-color: #d9534f; color: white; padding: 0.2em 0.5em; border-radius: 4px; }
-    .actions-form { margin-top: 1rem; display: flex; gap: 10px; flex-wrap: wrap; }
-    .actions-form select, .actions-form button { padding: 8px 12px; border-radius: 5px; border: 1px solid #ccc; }
-    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    .estado-ENTREGADO, .estado-ENTREGA_FALLIDA { background-color: #5cb85c; color: white; padding: 0.2em 0.5em; border-radius: 4px; font-size: 0.9em; }
+    .estado-ENTREGA_FALLIDA { background-color: #d9534f; }
+    .actions-form, .guia-form { margin-top: 1rem; display: flex; gap: 10px; flex-wrap: wrap; }
+    .actions-form select, .actions-form button, .guia-form input, .guia-form button { padding: 8px 12px; border-radius: 5px; border: 1px solid #ccc; }
+    .form-grid { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
+    @media (min-width: 992px) { .form-grid { grid-template-columns: 1fr 2fr; } }
     .form-group { margin-bottom: 1rem; }
     .form-group label { display: block; font-weight: bold; margin-bottom: 0.5rem; }
     .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #ccc; }
     .submit-btn { background-color: #337ab7; color: white; border: none; cursor: pointer; padding: 10px 15px; }
     .finalizar-ruta-btn { background-color: #28a745; color: white; border: none; padding: 15px; font-size: 1.2rem; width: 100%; cursor: pointer; border-radius: 5px; }
+    .bulto-info { font-size: 0.9em; color: #555; background: #f9f9f9; padding: 0.5rem; border-radius: 4px; margin-top: 0.5rem; }
+    
+    /* --- Estilos para el Resumen Financiero --- */
+    .resumen-financiero { text-align: center; }
+    .resumen-financiero .valor { font-size: 1.8rem; font-weight: bold; margin-bottom: 0.5rem; }
+    .resumen-financiero .etiqueta { font-size: 0.9rem; text-transform: uppercase; color: #777; }
+    .resumen-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; }
+    .balance-positivo { color: #28a745; }
+    .balance-negativo { color: #d9534f; }
 </style>
 {% endblock %}
 
 {% block content %}
 <a href="{{ url_for('dashboard_conductor') }}" class="back-link">← Volver a mi Dashboard</a>
 
-<div class="card">
-    <h1>Detalle de Ruta #{{ ruta.id }}</h1>
-    <p>Revisa las órdenes, actualiza su estado y registra cualquier gasto o pago recibido.</p>
+<div class="card resumen-financiero">
+    <h2>Resumen Financiero de la Ruta</h2>
+    <div class="resumen-grid">
+        <div>
+            <div class="valor">¢{{ '%.2f'|format(ruta.gastos_asignados) }}</div>
+            <div class="etiqueta">Dinero Recibido</div>
+        </div>
+        <div>
+            <div class="valor">¢{{ '%.2f'|format(total_recibido) }}</div>
+            <div class="etiqueta">Pagos de Clientes</div>
+        </div>
+        <div>
+            <div class="valor">- ¢{{ '%.2f'|format(total_gastado) }}</div>
+            <div class="etiqueta">Gastos Reportados</div>
+        </div>
+        <div>
+            <div class="valor {{ 'balance-positivo' if balance >= 0 else 'balance-negativo' }}">¢{{ '%.2f'|format(balance) }}</div>
+            <div class="etiqueta">Balance a Liquidar</div>
+        </div>
+    </div>
 </div>
 
-{% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-        {% for category, message in messages %}
-            <div class="flash flash-{{ category }}">{{ message }}</div>
-        {% endfor %}
-    {% endif %}
-{% endwith %}
 
 <div class="form-grid">
     <!-- Columna Izquierda: Gastos y Pagos -->
@@ -84,35 +104,54 @@
     </div>
 
     <!-- Columna Derecha: Lista de Órdenes -->
-    <div>
-        <div class="card">
-            <h2>Órdenes a Entregar ({{ ordenes|length }})</h2>
-            {% for orden in ordenes %}
-            <div class="orden-card">
-                <div class="orden-header">
-                    <div>
-                        <h3>#{{ orden.numero_pedido }}</h3>
-                        <p style="margin: 0;"><strong>Cliente:</strong> {{ orden.cliente_nombre }}</p>
-                    </div>
-                    <div>
-                        {% if orden.estado in ['ENTREGADO', 'ENTREGA_FALLIDA'] %}
-                            <span class="estado-{{ orden.estado }}">{{ orden.estado.replace('_', ' ') }}</span>
-                        {% else %}
-                            <span style="color: #777;">En Reparto</span>
-                        {% endif %}
-                    </div>
+    <div class="card">
+        <h2>Órdenes a Entregar ({{ ordenes|length }})</h2>
+        {% for orden in ordenes %}
+        <div class="orden-card">
+            <div class="orden-header">
+                <div>
+                    <h3>#{{ orden.numero_pedido }}</h3>
+                    <p style="margin: 0;"><strong>Cliente:</strong> {{ orden.cliente_nombre }}</p>
+                    <p style="margin: 0.5rem 0;"><strong>Destino:</strong> {{ orden.destino.nombre if orden.destino else 'Sin Asignar' }}</p>
                 </div>
-
-                <form action="{{ url_for('actualizar_estado_orden', orden_id=orden.id) }}" method="POST" class="actions-form">
-                    <select name="estado">
-                        <option value="ENTREGADO">Entregado con Éxito</option>
-                        <option value="ENTREGA_FALLIDA">Entrega Fallida</option>
-                    </select>
-                    <button type="submit">Actualizar Estado</button>
-                </form>
+                <div>
+                    {% if orden.estado in ['ENTREGADO', 'ENTREGA_FALLIDA'] %}
+                        <span class="estado-{{ orden.estado }}">{{ orden.estado.replace('_', ' ') }}</span>
+                    {% else %}
+                        <span style="color: #777;">En Reparto</span>
+                    {% endif %}
+                </div>
             </div>
-            {% endfor %}
+            
+            <div class="bulto-info">
+                <strong>Bultos ({{ orden.bultos|length }}):</strong> 
+                {% set bulto_types = {} %}
+                {% for bulto in orden.bultos %}
+                    {% if bulto.tipo in bulto_types %}
+                        {% set _ = bulto_types.update({bulto.tipo: bulto_types[bulto.tipo] + 1}) %}
+                    {% else %}
+                        {% set _ = bulto_types.update({bulto.tipo: 1}) %}
+                    {% endif %}
+                {% endfor %}
+                {% for tipo, count in bulto_types.items() %}
+                    {{ count }} {{ tipo }}{{ 'S' if count > 1 else '' }}{{ ', ' if not loop.last }}
+                {% endfor %}
+            </div>
+
+            <form action="{{ url_for('actualizar_estado_orden', orden_id=orden.id) }}" method="POST" class="actions-form">
+                <select name="estado">
+                    <option value="ENTREGADO">Entregado con Éxito</option>
+                    <option value="ENTREGA_FALLIDA">Entrega Fallida</option>
+                </select>
+                <button type="submit">Actualizar Estado</button>
+            </form>
+
+            <form action="{{ url_for('guardar_guia_encomienda', orden_id=orden.id) }}" method="POST" class="guia-form">
+                <input type="text" name="guia_encomienda" placeholder="Nº de Guía de Encomienda" value="{{ orden.guia_encomienda if orden.guia_encomienda }}">
+                <button type="submit">Guardar Guía</button>
+            </form>
         </div>
+        {% endfor %}
     </div>
 </div>
 

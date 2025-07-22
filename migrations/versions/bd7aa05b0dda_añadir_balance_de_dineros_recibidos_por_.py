@@ -1,8 +1,8 @@
-"""Añadir columna y relacion destino_id a Orden
+"""Añadir balance  de dineros recibidos por el conductor
 
-Revision ID: dce6a2ab129d
+Revision ID: bd7aa05b0dda
 Revises: 
-Create Date: 2025-07-19 12:33:54.752090
+Create Date: 2025-07-21 19:41:40.403937
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'dce6a2ab129d'
+revision = 'bd7aa05b0dda'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -37,6 +37,7 @@ def upgrade():
     sa.Column('fecha_creacion', sa.DateTime(), nullable=True),
     sa.Column('estado', sa.String(length=20), nullable=False),
     sa.Column('gastos_asignados', sa.Float(), nullable=False),
+    sa.Column('fecha_finalizacion', sa.DateTime(), nullable=True),
     sa.Column('tipo_entrega', sa.String(length=20), nullable=False),
     sa.Column('conductor_id', sa.Integer(), nullable=True),
     sa.Column('nombre_transportista', sa.String(length=100), nullable=True),
@@ -78,6 +79,7 @@ def upgrade():
     sa.Column('devolucion_confirmada', sa.Boolean(), nullable=False),
     sa.Column('hoja_de_ruta_id', sa.Integer(), nullable=True),
     sa.Column('destino_id', sa.Integer(), nullable=True),
+    sa.Column('guia_encomienda', sa.String(length=100), nullable=True),
     sa.ForeignKeyConstraint(['destino_id'], ['destino.id'], ),
     sa.ForeignKeyConstraint(['hoja_de_ruta_id'], ['hoja_de_ruta.id'], ),
     sa.ForeignKeyConstraint(['lote_id'], ['lote_picking.id'], ),
