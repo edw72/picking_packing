@@ -1,8 +1,8 @@
-"""Añadir balance  de dineros recibidos por el conductor
+"""fix: se agrgo finanzas y estados en detalle ruta admin
 
-Revision ID: bd7aa05b0dda
+Revision ID: c731ccd319b3
 Revises: 
-Create Date: 2025-07-21 19:41:40.403937
+Create Date: 2025-07-22 12:48:04.480491
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'bd7aa05b0dda'
+revision = 'c731ccd319b3'
 down_revision = None
 branch_labels = None
 depends_on = None

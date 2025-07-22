@@ -1131,10 +1131,6 @@ def gestionar_rutas():
             nueva_ruta.nombre_transportista = nombre_transportista
             nueva_ruta.nombre_receptor = nombre_receptor
             nueva_ruta.id_receptor = id_receptor
-            
-            # REGLA DE NEGOCIO: Las rutas externas se consideran finalizadas de inmediato
-            nueva_ruta.estado = 'FINALIZADA'
-            nueva_ruta.fecha_finalizacion = datetime.datetime.utcnow()
         
         else:
             flash('Tipo de entrega no válido.', 'error')
@@ -1789,14 +1785,28 @@ def finalizar_ruta_conductor():
     ruta_id = request.form.get('ruta_id')
     ruta = db.get_or_404(HojaDeRuta, ruta_id)
 
-    # Seguridad: solo el conductor asignado puede finalizar su propia ruta
     if ruta.conductor_id != current_user.id:
         flash("No tienes permiso para finalizar esta ruta.", "error")
         return redirect(url_for('dashboard_conductor'))
 
+    # --- INICIO: Nueva validación ---
+    # Contamos cuántas órdenes en esta ruta NO están en un estado final
+    ordenes_pendientes = db.session.scalar(
+        db.select(func.count(Orden.id)).where(
+            Orden.hoja_de_ruta_id == ruta.id,
+            Orden.estado.notin_(['ENTREGADO', 'ENTREGA_FALLIDA'])
+        )
+    )
+
+    if ordenes_pendientes > 0:
+        flash(f"No se puede finalizar la ruta. Aún tienes {ordenes_pendientes} entrega(s) pendiente(s) de actualizar.", "error")
+        return redirect(url_for('detalle_ruta_conductor'))
+    # --- FIN: Nueva validación ---
+
     ruta.estado = 'FINALIZADA'
     ruta.fecha_finalizacion = datetime.datetime.utcnow()
     db.session.commit()
+    
     flash(f"Hoja de Ruta #{ruta.id} ha sido marcada como FINALIZADA.", "success")
     return redirect(url_for('dashboard_conductor'))
 
@@ -1911,6 +1921,16 @@ def confirmar_salida_ruta(ruta_id):
     if len(bultos_verificados) != total_bultos_en_ruta:
         flash("Error de seguridad: No todos los bultos de la ruta han sido verificados.", "error")
         return redirect(url_for('verificar_carga_ruta', ruta_id=ruta.id))
+    
+     # --- INICIO: Nueva lógica de estado condicional ---
+    if ruta.tipo_entrega == 'INTERNA':
+        ruta.estado = 'EN_RUTA'
+        mensaje_flash = f'¡La Ruta #{ruta.id} ha iniciado con éxito!'
+    else: # Es 'EXTERNA'
+        ruta.estado = 'FINALIZADA'
+        ruta.fecha_finalizacion = datetime.datetime.utcnow()
+        mensaje_flash = f'La entrega externa de la Ruta #{ruta.id} ha sido confirmada y finalizada.'
+    # --- FIN: Nueva lógica ---
 
     # Actualizamos los estados
     ruta.estado = 'EN_RUTA'
