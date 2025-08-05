@@ -128,6 +128,17 @@
                     </div>
                 {% endif %}
 
+                        <!-- === INICIO: NUEVO BLOQUE PARA OPERARIOS Y OTROS ROLES === -->
+                {% if current_user.role == 'operario' %}
+                    <div class="nav-admin-links"> <!-- Reutilizamos el estilo -->
+                        <a href="{{ url_for('dashboard') }}">Picking</a>
+                        <a href="{{ url_for('dashboard_packing') }}">Packing</a>
+                        <a href="{{ url_for('dashboard_despacho') }}">Despacho</a>
+                        <a href="{{ url_for('gestionar_rutas') }}">Hojas de Ruta</a>
+                    </div>
+                {% endif %}
+                <!-- === FIN: NUEVO BLOQUE === -->
+
                 <!-- Info de usuario y Logout para todos -->
                 <div class="user-info">
                     <span>Hola, <strong>{{ current_user.username }}</strong> ({{ current_user.role }})</span>

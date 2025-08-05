@@ -47,6 +47,18 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def logistica_required(f):
+    """
+    Decorador que verifica si el usuario tiene rol de 'admin' o 'operario'.
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or current_user.role not in ['admin', 'operario']:
+            flash('Se requiere rol de Administrador o de Operario para acceder a esta página.', 'error')
+            return redirect(url_for('dashboard')) # O a donde prefieras
+        return f(*args, **kwargs)
+    return decorated_function
+
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
@@ -1088,7 +1100,7 @@ def reportes_y_busqueda():
 
 @app.route('/rutas', methods=['GET', 'POST'])
 @login_required
-@admin_required
+@logistica_required
 def gestionar_rutas():
     if request.method == 'POST':
         # --- 1. Obtener datos comunes del formulario ---
@@ -1506,7 +1518,7 @@ def generar_pdf_etiquetas(orden_id):
 
 @app.route('/ruta/<int:ruta_id>')
 @login_required
-@admin_required
+@logistica_required
 def detalle_ruta(ruta_id):
     # 1. Buscamos la hoja de ruta y cargamos eficientemente el conductor
     ruta_query = db.select(HojaDeRuta).where(HojaDeRuta.id == ruta_id).options(joinedload(HojaDeRuta.conductor))
@@ -1557,7 +1569,7 @@ def detalle_ruta(ruta_id):
     
 @app.route('/ruta/<int:ruta_id>/agregar-ordenes', methods=['POST'])
 @login_required
-@admin_required
+@logistica_required
 def agregar_ordenes_a_ruta(ruta_id):
     ruta = HojaDeRuta.query.get_or_404(ruta_id)
     
@@ -1581,7 +1593,7 @@ def agregar_ordenes_a_ruta(ruta_id):
 
 @app.route('/ruta/quitar-orden/<int:orden_id>', methods=['POST'])
 @login_required
-@admin_required
+@logistica_required
 def quitar_orden_de_ruta(orden_id):
     orden = Orden.query.get_or_404(orden_id)
     ruta_id_actual = orden.hoja_de_ruta_id
@@ -1599,7 +1611,7 @@ def quitar_orden_de_ruta(orden_id):
 
 @app.route('/ruta/<int:ruta_id>/iniciar', methods=['POST'])
 @login_required
-@admin_required
+@logistica_required
 def iniciar_ruta(ruta_id):
     ruta = db.get_or_404(HojaDeRuta, ruta_id)
 
@@ -1813,6 +1825,7 @@ def finalizar_ruta_conductor():
 
 @app.route('/orden/<int:orden_id>/asignar-destino', methods=['GET', 'POST'])
 @login_required
+@logistica_required
 def asignar_destino(orden_id):
     orden = db.get_or_404(Orden, orden_id)
 
@@ -1856,7 +1869,7 @@ def api_destinos():
 
 @app.route('/ruta/<int:ruta_id>/verificar-carga', methods=['GET'])
 @login_required
-@admin_required
+@logistica_required
 def verificar_carga_ruta(ruta_id):
     ruta = db.get_or_404(HojaDeRuta, ruta_id)
     if ruta.estado != 'EN_PREPARACION':
@@ -1876,7 +1889,7 @@ def verificar_carga_ruta(ruta_id):
 
 @app.route('/api/ruta/<int:ruta_id>/escanear-bulto', methods=['POST'])
 @login_required
-@admin_required
+@logistica_required
 def api_escanear_bulto_carga(ruta_id):
     data = request.get_json()
     identificador_escaneado = data.get('identificador_unico', '').strip()
@@ -1909,7 +1922,7 @@ def api_escanear_bulto_carga(ruta_id):
     
 @app.route('/ruta/<int:ruta_id>/confirmar-salida', methods=['POST'])
 @login_required
-@admin_required
+@logistica_required
 def confirmar_salida_ruta(ruta_id):
     ruta = db.get_or_404(HojaDeRuta, ruta_id)
     
