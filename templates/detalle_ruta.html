@@ -134,7 +134,7 @@
         <h2>Órdenes en la Ruta ({{ ordenes_asignadas|length }})</h2>
         {% if ordenes_asignadas %}
         <table>
-             <thead> <tr> <th>Pedido #</th> <th>Cliente y Destino</th> <th>Estado Actual</th> <th>Info Adicional</th> </tr> </thead>
+             <thead> <tr> <th>Pedido #</th> <th>Cliente y Destino</th> <th>Estado Actual</th> <th>Info Adicional</th> <th>Acción</th> </tr> </thead>
             <tbody>
                 {% for orden in ordenes_asignadas %}
                 <tr>
@@ -147,6 +147,16 @@
                     <td>
                         {% if orden.guia_encomienda %}
                             <div class="guia-info">Guía: {{ orden.guia_encomienda }}</div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <!-- El botón solo aparece si la ruta está en preparación -->
+                        {% if ruta.estado == 'EN_PREPARACION' %}
+                        <form action="{{ url_for('quitar_orden_de_ruta', orden_id=orden.id) }}" method="POST" onsubmit="return confirm('¿Quitar esta orden de la ruta?');">
+                            <button type="submit" class="remove-btn">Quitar</button>
+                        </form>
+                        {% else %}
+                            - <!-- Si la ruta ya inició, no hay acción posible -->
                         {% endif %}
                     </td>
                 </tr>
