@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- El título será dinámico -->
     <title>{% block title %}App de Picking{% endblock %} Pick & pack AT</title>
+    <!-- === INICIO: LÍNEA AÑADIDA PARA EL FAVICON === -->
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <!-- === FIN: LÍNEA AÑADIDA === -->
     <style>
         body { 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;

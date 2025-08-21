@@ -1920,7 +1920,7 @@ def api_escanear_bulto_carga(ruta_id):
     })
     
     
-@app.route('/ruta/<int:ruta_id>/confirmar-salida', methods=['POST'])
+'''@app.route('/ruta/<int:ruta_id>/confirmar-salida', methods=['POST'])
 @login_required
 @logistica_required
 def confirmar_salida_ruta(ruta_id):
@@ -1955,7 +1955,48 @@ def confirmar_salida_ruta(ruta_id):
     session.pop(session_key, None) # Limpiamos la sesión
 
     flash(f'¡La Ruta #{ruta.id} ha iniciado con éxito!', 'success')
-    return redirect(url_for('detalle_ruta', ruta_id=ruta.id))  
+    return redirect(url_for('detalle_ruta', ruta_id=ruta.id)) ''' 
+    
+@app.route('/ruta/<int:ruta_id>/confirmar-salida', methods=['POST'])
+@login_required
+@logistica_required
+def confirmar_salida_ruta(ruta_id):
+    ruta = db.get_or_404(HojaDeRuta, ruta_id)
+    
+    # Doble verificación de seguridad
+    session_key = f'carga_verificada_{ruta_id}'
+    bultos_verificados = session.get(session_key, [])
+    total_bultos_en_ruta = db.session.scalar(db.select(func.count(Bulto.id)).join(Bulto.orden).where(Orden.hoja_de_ruta_id == ruta.id))
+
+    if len(bultos_verificados) != total_bultos_en_ruta:
+        flash("Error de seguridad: No todos los bultos de la ruta han sido verificados.", "error")
+        return redirect(url_for('verificar_carga_ruta', ruta_id=ruta.id))
+
+    ### --- INICIO: LÓGICA CLAVE Y CORREGIDA --- ###
+    # Se decide el estado final basado en el tipo de entrega de la ruta.
+    
+    if ruta.tipo_entrega == 'INTERNA':
+        # Si es un conductor de la empresa, la ruta apenas comienza.
+        ruta.estado = 'EN_RUTA'
+        mensaje_flash = f'¡La Ruta #{ruta.id} ha iniciado con éxito!'
+    else: # Es 'EXTERNA'
+        # Si es un transportista externo, nuestra responsabilidad termina aquí.
+        # La ruta se considera finalizada.
+        ruta.estado = 'FINALIZADA'
+        ruta.fecha_finalizacion = datetime.datetime.utcnow()
+        mensaje_flash = f'La entrega externa de la Ruta #{ruta.id} ha sido confirmada y finalizada.'
+    ### --- FIN: LÓGICA CLAVE Y CORREGIDA --- ###
+    
+    # Esta lógica es común para ambos casos: todas las órdenes se marcan como despachadas.
+    for orden in ruta.ordenes:
+        orden.estado = 'DESPACHADO'
+        orden.fecha_despacho = datetime.datetime.utcnow()
+    
+    db.session.commit()
+    session.pop(session_key, None) # Limpiamos la sesión
+
+    flash(mensaje_flash, 'success')
+    return redirect(url_for('detalle_ruta', ruta_id=ruta.id))    
 
 @app.route('/orden/<int:orden_id>/guardar-guia', methods=['POST'])
 @login_required
