@@ -40,6 +40,23 @@
     .estado-ENTREGADO { background-color: #5cb85c; color: white; padding: 0.2em 0.5em; border-radius: 4px; }
     .estado-ENTREGA_FALLIDA { background-color: #d9534f; color: white; padding: 0.2em 0.5em; border-radius: 4px; }
     .guia-info { font-style: italic; color: #555; font-size: 0.9em; }
+
+    .form-iniciar-ruta {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+    }
+    .form-iniciar-ruta .form-group {
+        flex-grow: 1;
+        margin: 0;
+    }
+    .form-iniciar-ruta input {
+        padding: 11px;
+        font-size: 16px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        width: 150px; /* Ancho fijo para el input de dinero */
+    }
 </style>
 {% endblock %}
 
@@ -61,12 +78,18 @@
             {% if ruta.fecha_finalizacion %}
                 (Finalizada: {{ ruta.fecha_finalizacion|localtime }})
             {% endif %}
+            Gastos Asignados: ¢{{ '%.2f'|format(ruta.gastos_asignados) }}
         </p>
     </div>
     
     <div>
         {% if ruta.estado == 'EN_PREPARACION' %}
-        <form action="{{ url_for('iniciar_ruta', ruta_id=ruta.id) }}" method="POST" onsubmit="return confirm('¿Está seguro? Esta acción llevará a la pantalla de verificación de carga.');">
+        <!-- === INICIO: FORMULARIO MODIFICADO === -->
+        <form action="{{ url_for('iniciar_ruta', ruta_id=ruta.id) }}" method="POST" class="form-iniciar-ruta" onsubmit="return confirm('¿Está seguro? Esta acción guardará los gastos y llevará a la pantalla de verificación.');">
+            <div class="form-group">
+                <input type="number" name="gastos_asignados" value="{{ '%.2f'|format(ruta.gastos_asignados) }}"
+                       step="0.01" min="0" required title="Gastos asignados para la ruta">
+            </div>
             <button type="submit" class="action-btn start-route-btn">Verificar e Iniciar Ruta</button>
         </form>
         {% endif %}

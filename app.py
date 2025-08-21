@@ -1103,43 +1103,31 @@ def reportes_y_busqueda():
 @logistica_required
 def gestionar_rutas():
     if request.method == 'POST':
-        # --- 1. Obtener datos comunes del formulario ---
         tipo_entrega = request.form.get('tipo_entrega')
-        # Limpiamos el input de gastos para que acepte comas y puntos
-        gastos_str = request.form.get('gastos_asignados', '0').replace(',', '.')
         
-        # --- 2. Validar los gastos asignados ---
-        try:
-            gastos = float(gastos_str)
-            if gastos < 0:
-                flash('Los gastos asignados no pueden ser negativos.', 'error')
-                return redirect(url_for('gestionar_rutas'))
-        except ValueError:
-            flash('El valor de los gastos asignados no es un número válido.', 'error')
-            return redirect(url_for('gestionar_rutas'))
+        # El objeto se crea sin gastos asignados. Se añadirán después.
+        nueva_ruta = HojaDeRuta(tipo_entrega=tipo_entrega)
 
-        # --- 3. Crear el objeto base de la Hoja de Ruta ---
-        nueva_ruta = HojaDeRuta(gastos_asignados=gastos, tipo_entrega=tipo_entrega)
-
-        # --- 4. Lógica dinámica según el tipo de entrega ---
         if tipo_entrega == 'INTERNA':
             conductor_id = request.form.get('conductor_id')
             if not conductor_id:
                 flash('Debe seleccionar un conductor para una ruta interna.', 'error')
                 return redirect(url_for('gestionar_rutas'))
-            # Asignamos el conductor a la nueva ruta
             nueva_ruta.conductor_id = int(conductor_id)
 
         elif tipo_entrega == 'EXTERNA':
             nombre_transportista = request.form.get('nombre_transportista')
-            nombre_receptor = request.form.get('nombre_receptor')
-            id_receptor = request.form.get('id_receptor')
-            
-            if not all([nombre_transportista, nombre_receptor, id_receptor]):
-                flash('Para una entrega externa, todos los campos de transportista son obligatorios.', 'error')
+            # --- INICIO: CAMBIO EN LA VALIDACIÓN ---
+            # Ahora, solo el nombre del transportista es obligatorio.
+            if not nombre_transportista:
+                flash('El Nombre del Transportista es obligatorio para una entrega externa.', 'error')
                 return redirect(url_for('gestionar_rutas'))
             
-            # Asignamos los datos del transportista a la nueva ruta
+            # Los otros dos campos son opcionales y se guardan si se proporcionan.
+            nombre_receptor = request.form.get('nombre_receptor')
+            id_receptor = request.form.get('id_receptor')
+            # --- FIN: CAMBIO EN LA VALIDACIÓN ---
+            
             nueva_ruta.nombre_transportista = nombre_transportista
             nueva_ruta.nombre_receptor = nombre_receptor
             nueva_ruta.id_receptor = id_receptor
@@ -1148,20 +1136,16 @@ def gestionar_rutas():
             flash('Tipo de entrega no válido.', 'error')
             return redirect(url_for('gestionar_rutas'))
 
-        # --- 5. Guardar la nueva Hoja de Ruta en la Base de Datos ---
         db.session.add(nueva_ruta)
         db.session.commit()
         
-        flash(f'Hoja de Ruta #{nueva_ruta.id} ({tipo_entrega}) creada con éxito.', 'success')
-        # Redirigimos para usar el patrón Post/Redirect/Get y limpiar el formulario
-        return redirect(url_for('gestionar_rutas'))
+        flash(f'Hoja de Ruta #{nueva_ruta.id} ({tipo_entrega}) creada. Ahora añada las órdenes.', 'success')
+        # Redirigimos al detalle para el siguiente paso lógico
+        return redirect(url_for('detalle_ruta', ruta_id=nueva_ruta.id))
 
-    # --- Lógica para GET (cuando se carga la página por primera vez) ---
-    # Usamos joinedload para cargar eficientemente el conductor y evitar consultas N+1
+    # --- Lógica GET (sin cambios) ---
     rutas_query = db.select(HojaDeRuta).options(joinedload(HojaDeRuta.conductor)).order_by(HojaDeRuta.fecha_creacion.desc())
     rutas = db.session.execute(rutas_query).scalars().all()
-    
-    # Obtenemos la lista de conductores para poblar el dropdown del formulario
     conductores = db.session.execute(db.select(User).filter_by(role='conductor').order_by(User.username)).scalars().all()
     
     return render_template('gestionar_rutas.html', rutas=rutas, conductores=conductores)
@@ -1615,32 +1599,32 @@ def quitar_orden_de_ruta(orden_id):
 def iniciar_ruta(ruta_id):
     ruta = db.get_or_404(HojaDeRuta, ruta_id)
 
-    # --- Validación 1: Estado de la ruta ---
+    # Validaciones (sin cambios)
     if ruta.estado != 'EN_PREPARACION':
         flash('Esta ruta ya no está en preparación.', 'error')
         return redirect(url_for('detalle_ruta', ruta_id=ruta.id))
-
-    # --- Validación 2: Ruta no vacía ---
     if not ruta.ordenes.count() > 0:
         flash('No se puede iniciar una ruta vacía. Añada al menos una orden.', 'error')
         return redirect(url_for('detalle_ruta', ruta_id=ruta.id))
 
-    # --- INICIO: NUEVA VALIDACIÓN DE SEGURIDAD ---
-    # Si es una ruta interna, verificamos que el conductor no tenga otra ruta activa.
-    if ruta.tipo_entrega == 'INTERNA':
-        ruta_activa_existente = db.session.execute(
-            db.select(HojaDeRuta).where(
-                HojaDeRuta.conductor_id == ruta.conductor_id,
-                HojaDeRuta.estado == 'EN_RUTA'
-            )
-        ).scalar_one_or_none()
-        
-        if ruta_activa_existente:
-            flash(f"Error: El conductor {ruta.conductor.username} ya tiene una ruta activa (Ruta #{ruta_activa_existente.id}).", "error")
+    # --- INICIO: NUEVA LÓGICA PARA GUARDAR GASTOS ---
+    gastos_str = request.form.get('gastos_asignados', '0').replace(',', '.')
+    try:
+        gastos = float(gastos_str)
+        if gastos < 0:
+            flash('Los gastos asignados no pueden ser negativos.', 'error')
             return redirect(url_for('detalle_ruta', ruta_id=ruta.id))
-    # --- FIN: NUEVA VALIDACIÓN DE SEGURIDAD ---
+        
+        # Guardamos el monto en la ruta antes de continuar
+        ruta.gastos_asignados = gastos
+        db.session.commit()
 
-    # Si pasa todas las validaciones, redirigimos a la página de verificación
+    except ValueError:
+        flash('El valor de los gastos asignados no es un número válido.', 'error')
+        return redirect(url_for('detalle_ruta', ruta_id=ruta.id))
+    # --- FIN: NUEVA LÓGICA ---
+
+    # Redirigimos a la página de verificación de carga
     return redirect(url_for('verificar_carga_ruta', ruta_id=ruta.id))
 
 

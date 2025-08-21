@@ -73,26 +73,21 @@
             <!-- --- INICIO: Campos para Ruta EXTERNA (ocultos por defecto) --- -->
             <div id="campos-externa" style="display: none;">
                 <div class="form-group">
-                    <label for="nombre_transportista">Nombre del Transportista</label>
+                    <label for="nombre_transportista">Nombre del Transportista (Obligatorio)</label>
                     <input type="text" id="nombre_transportista" name="nombre_transportista" placeholder="Ej: Uber, Cliente, Mensajero">
                 </div>
                 <div class="form-group">
-                    <label for="nombre_receptor">Nombre de Quien Recibe</label>
+                    <label for="nombre_receptor">Nombre de Quien Recibe (Opcional)</label>
                     <input type="text" id="nombre_receptor" name="nombre_receptor">
                 </div>
                 <div class="form-group">
-                    <label for="id_receptor">ID de Quien Recibe</label>
+                    <label for="id_receptor">ID de Quien Recibe (Opcional)</label>
                     <input type="text" id="id_receptor" name="id_receptor" placeholder="Placa, Cédula, etc.">
                 </div>
             </div>
             <!-- --- FIN: Campos Externa --- -->
 
             <hr>
-
-            <div class="form-group">
-                <label for="gastos_asignados">Gastos Asignados (¢)</label>
-                <input type="number" id="gastos_asignados" name="gastos_asignados" step="0.01" min="0" value="0.00" required>
-            </div>
 
             <button type="submit" class="submit-btn">Crear Hoja de Ruta</button>
         </form>
@@ -164,8 +159,8 @@ document.addEventListener('DOMContentLoaded', function() {
             // Ocultar campos externos y quitarles el 'required'
             camposExterna.style.display = 'none';
             transportistaInput.required = false;
-            receptorInput.required = false;
-            idReceptorInput.required = false;
+            //receptorInput.required = false;
+            //idReceptorInput.required = false;
 
         } else { // Si es 'EXTERNA'
             // Ocultar campos internos y quitarles el 'required'
@@ -175,8 +170,8 @@ document.addEventListener('DOMContentLoaded', function() {
             // Mostrar campos externos y hacerlos obligatorios
             camposExterna.style.display = 'block';
             transportistaInput.required = true;
-            receptorInput.required = true;
-            idReceptorInput.required = true;
+            //receptorInput.required = true;
+            //idReceptorInput.required = true;
         }
     }
 
