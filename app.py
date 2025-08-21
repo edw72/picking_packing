@@ -1615,15 +1615,32 @@ def quitar_orden_de_ruta(orden_id):
 def iniciar_ruta(ruta_id):
     ruta = db.get_or_404(HojaDeRuta, ruta_id)
 
+    # --- Validación 1: Estado de la ruta ---
     if ruta.estado != 'EN_PREPARACION':
         flash('Esta ruta ya no está en preparación.', 'error')
         return redirect(url_for('detalle_ruta', ruta_id=ruta.id))
 
+    # --- Validación 2: Ruta no vacía ---
     if not ruta.ordenes.count() > 0:
         flash('No se puede iniciar una ruta vacía. Añada al menos una orden.', 'error')
         return redirect(url_for('detalle_ruta', ruta_id=ruta.id))
 
-    # Redirigimos a la nueva página de verificación
+    # --- INICIO: NUEVA VALIDACIÓN DE SEGURIDAD ---
+    # Si es una ruta interna, verificamos que el conductor no tenga otra ruta activa.
+    if ruta.tipo_entrega == 'INTERNA':
+        ruta_activa_existente = db.session.execute(
+            db.select(HojaDeRuta).where(
+                HojaDeRuta.conductor_id == ruta.conductor_id,
+                HojaDeRuta.estado == 'EN_RUTA'
+            )
+        ).scalar_one_or_none()
+        
+        if ruta_activa_existente:
+            flash(f"Error: El conductor {ruta.conductor.username} ya tiene una ruta activa (Ruta #{ruta_activa_existente.id}).", "error")
+            return redirect(url_for('detalle_ruta', ruta_id=ruta.id))
+    # --- FIN: NUEVA VALIDACIÓN DE SEGURIDAD ---
+
+    # Si pasa todas las validaciones, redirigimos a la página de verificación
     return redirect(url_for('verificar_carga_ruta', ruta_id=ruta.id))
 
 
@@ -1658,15 +1675,22 @@ def conductor_required(f):
 @login_required
 @conductor_required
 def dashboard_conductor():
-    # Buscamos la ruta que está actualmente EN_RUTA para este conductor
+    # --- INICIO: CAMBIO CLAVE ---
+    # En lugar de .scalar_one_or_none(), usamos .first()
+    # .first() devuelve el primer resultado o None si no hay ninguno. No da error si hay más de uno.
     ruta_activa = db.session.execute(
         db.select(HojaDeRuta).where(
             HojaDeRuta.conductor_id == current_user.id,
             HojaDeRuta.estado == 'EN_RUTA'
         )
-    ).scalar_one_or_none()
+    ).first()
+    # --- FIN: CAMBIO CLAVE ---
 
-    # Buscamos el historial de rutas ya finalizadas por este conductor
+    # Si ruta_activa es una tupla (lo que devuelve .first()), extraemos el objeto
+    if ruta_activa:
+        ruta_activa = ruta_activa[0]
+
+    # El resto de la función sigue igual
     historial_rutas = db.session.execute(
         db.select(HojaDeRuta).where(
             HojaDeRuta.conductor_id == current_user.id,
