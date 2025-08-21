@@ -150,10 +150,14 @@ class Bulto(db.Model):
     __tablename__ = 'bulto'
     id = db.Column(db.Integer, primary_key=True)
     orden_id = db.Column(db.Integer, db.ForeignKey('orden.id'), nullable=False)
-    tipo = db.Column(db.String(20), nullable=False)
+    tipo = db.Column(db.String(20), nullable=False) # CAJA,BOLSA, PAQUETE, LOTE
     identificador_unico = db.Column(db.String(100), unique=True, nullable=False)
     fecha_creacion = db.Column(db.DateTime, default=datetime.datetime.utcnow)
-    def __repr__(self): return f'<Bulto {self.identificador_unico} para Orden {self.orden_id}>'
+    cantidad_unidades = db.Column(db.Integer, nullable=False, default=1)
+    def __repr__(self):
+        if self.tipo == 'LOTE':
+            return f'<Bulto LOTE de {self.cantidad_unidades} unidades para Orden {self.orden_id}>'
+        return f'<Bulto {self.identificador_unico} para Orden {self.orden_id}>'
 
 class Destino(db.Model):
     id = db.Column(db.Integer, primary_key=True)
