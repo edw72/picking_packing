@@ -862,47 +862,57 @@ def detalle_packing(orden_id):
 @app.route('/packing/<int:orden_id>/finalizar', methods=['POST'])
 @login_required
 def finalizar_packing(orden_id):
-    orden = Orden.query.get_or_404(orden_id)
+    orden = db.get_or_404(Orden, orden_id)
     if orden.estado != 'EMPACADO':
         flash('Esta orden no está en el estado correcto para finalizar el packing.', 'error')
         return redirect(url_for('dashboard_packing'))
-
     try:
         num_cajas = int(request.form.get('cantidad_cajas', 0))
         num_bolsas = int(request.form.get('cantidad_bolsas', 0))
         num_paquetes = int(request.form.get('cantidad_paquetes', 0))
+        # --- INICIO: Nueva lógica para obtener lotes ---
+        lote_cantidades = request.form.getlist('lote_cantidades', type=int)
+        # --- FIN: Nueva lógica ---
     except (ValueError, TypeError):
         flash('Las cantidades deben ser números válidos.', 'error')
         return redirect(url_for('detalle_packing', orden_id=orden_id))
 
-    if num_cajas + num_bolsas + num_paquetes == 0:
-        flash('Debe especificar al menos un bulto (caja, bolsa o paquete).', 'error')
+    if num_cajas + num_bolsas + num_paquetes + len(lote_cantidades) == 0:
+        flash('Debe especificar al menos un bulto (caja, bolsa, paquete o lote).', 'error')
         return redirect(url_for('detalle_packing', orden_id=orden_id))
 
     bulto_counter = 1
+    # Bucle para Cajas
     for _ in range(num_cajas):
-        nuevo_bulto = Bulto(orden_id=orden.id, tipo='CAJA', identificador_unico=f'{orden.numero_pedido}-{bulto_counter}')
-        db.session.add(nuevo_bulto)
+        db.session.add(Bulto(orden_id=orden.id, tipo='CAJA', identificador_unico=f'{orden.numero_pedido}-{bulto_counter}'))
         bulto_counter += 1
-    
+    # Bucle para Bolsas
     for _ in range(num_bolsas):
-        nuevo_bulto = Bulto(orden_id=orden.id, tipo='BOLSA', identificador_unico=f'{orden.numero_pedido}-{bulto_counter}')
-        db.session.add(nuevo_bulto)
+        db.session.add(Bulto(orden_id=orden.id, tipo='BOLSA', identificador_unico=f'{orden.numero_pedido}-{bulto_counter}'))
         bulto_counter += 1
-
+    # Bucle para Paquetes
     for _ in range(num_paquetes):
-        nuevo_bulto = Bulto(orden_id=orden.id, tipo='PAQUETE', identificador_unico=f'{orden.numero_pedido}-{bulto_counter}')
-        db.session.add(nuevo_bulto)
+        db.session.add(Bulto(orden_id=orden.id, tipo='PAQUETE', identificador_unico=f'{orden.numero_pedido}-{bulto_counter}'))
         bulto_counter += 1
         
+    # --- INICIO: Nuevo bucle para LOTES ---
+    for cantidad in lote_cantidades:
+        if cantidad > 0:
+            db.session.add(Bulto(
+                orden_id=orden.id, 
+                tipo='LOTE', 
+                identificador_unico=f'{orden.numero_pedido}-{bulto_counter}',
+                cantidad_unidades=cantidad
+            ))
+            bulto_counter += 1
+    # --- FIN: Nuevo bucle ---
+
     orden.estado = 'LISTO_PARA_DESPACHO'
     orden.fecha_fin_packing = datetime.datetime.utcnow()
     orden.packer_id = current_user.id
-    
     db.session.commit()
-    session.pop(f'packing_{orden_id}', None)
-    flash(f'Orden #{orden.numero_pedido} finalizada. Se generaron {bulto_counter - 1} etiquetas.', 'success')
     
+    flash(f'Orden #{orden.numero_pedido} finalizada. Se generaron {bulto_counter - 1} etiquetas.', 'success')
     return redirect(url_for('imprimir_etiquetas', orden_id=orden.id))
 
 # === INICIO: NUEVAS RUTAS PARA IMPRESIÓN Y QR (PASO 4) ===

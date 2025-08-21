@@ -31,6 +31,11 @@
     @media (min-width: 768px) {
         .scan-form { flex-direction: row; }
     }
+    .lotes-section { margin-top: 1.5rem; }
+    .lote-input-row { display: flex; gap: 10px; align-items: center; margin-bottom: 0.5rem; }
+    .lote-input-row input { flex-grow: 1; }
+    .add-lote-btn { background-color: #007bff; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; }
+    .remove-lote-btn { background-color: #d9534f; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; }
 </style>
 {% endblock %}
 
@@ -93,28 +98,36 @@
         </tbody>
     </table>
     
-    <!-- La sección de finalización sigue igual -->
     <div id="packing-finalization-section">
         <h2 style="text-align:center; color:#28a745;">¡Verificación Completa!</h2>
-        <p style="text-align:center;">Ahora, registra cómo se empacaron los productos para generar las etiquetas de envío.</p>
+        <p style="text-align:center;">Registra cómo se empacaron los productos para generar las etiquetas.</p>
         <form action="{{ url_for('finalizar_packing', orden_id=orden.id) }}" method="POST">
              <div class="bultos-form-grid">
                 <div class="form-group">
                     <label for="cantidad_cajas">Nº de Cajas</label>
-                    <input type="number" name="cantidad_cajas" id="cantidad_cajas" value="0" min="0">
+                    <input type="number" name="cantidad_cajas" value="0" min="0">
                 </div>
                  <div class="form-group">
                     <label for="cantidad_bolsas">Nº de Bolsas</label>
-                    <input type="number" name="cantidad_bolsas" id="cantidad_bolsas" value="0" min="0">
+                    <input type="number" name="cantidad_bolsas" value="0" min="0">
                 </div>
                  <div class="form-group">
                     <label for="cantidad_paquetes">Nº de Paquetes</label>
-                    <input type="number" name="cantidad_paquetes" id="cantidad_paquetes" value="0" min="0">
+                    <input type="number" name="cantidad_paquetes" value="0" min="0">
                 </div>
             </div>
-            <button id="finalizar-btn-packing" type="submit" class="finalizar-btn">
-                Generar Etiquetas y Finalizar Packing
-            </button>
+
+            <hr>
+            <!-- --- Nueva sección para Lotes --- -->
+            <div class="lotes-section">
+                <h4>Empaques por Lote</h4>
+                <div id="lotes-container">
+                    <!-- Los inputs de lote se añadirán aquí dinámicamente -->
+                </div>
+                <button type="button" id="add-lote-btn" class="add-lote-btn">Añadir Lote</button>
+            </div>
+            
+            <button type="submit" class="finalizar-btn">Generar Etiquetas y Finalizar</button>
         </form>
     </div>
 </div>
@@ -260,5 +273,31 @@ document.addEventListener('DOMContentLoaded', function() {
     
     inicializarVista();
 });
+    const addLoteBtn = document.getElementById('add-lote-btn');
+            const lotesContainer = document.getElementById('lotes-container');
+
+            addLoteBtn.addEventListener('click', function() {
+                const newRow = document.createElement('div');
+                newRow.className = 'lote-input-row form-group';
+
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.name = 'lote_cantidades'; // Usamos el mismo nombre para que form.getlist funcione
+                input.placeholder = 'Cantidad de unidades en este lote';
+                input.min = '1';
+                input.required = true;
+
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'remove-lote-btn';
+                removeBtn.textContent = 'Quitar';
+                removeBtn.onclick = function() {
+                    lotesContainer.removeChild(newRow);
+                };
+
+                newRow.appendChild(input);
+                newRow.appendChild(removeBtn);
+                lotesContainer.appendChild(newRow);
+            });
 </script>
 {% endblock %}

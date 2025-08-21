@@ -94,6 +94,19 @@
                     <p class="contador-bulto">{{ loop.index }} de {{ total_bultos }}</p>
                 </div>
             </div>
+            
+            <div class="etiqueta-body .info">
+                <!-- === INICIO: Lógica Condicional para el Título === -->
+                {% if bulto.tipo == 'LOTE' %}
+                    <h2 class="tipo-bulto">LOTE</h2>
+                    <p class="contador-bulto">({{ bulto.cantidad_unidades }} Unidades)</p>
+                {% else %}
+                    <h2 class="tipo-bulto">{{ bulto.tipo }}</h2>
+                    <p class="contador-bulto">{{ loop.index }} de {{ total_bultos }}</p>
+                {% endif %}
+                <!-- === FIN: Lógica Condicional === -->
+            </div>
+
             <div class="etiqueta-footer">
                 ID: {{ bulto.identificador_unico }}
             </div>
