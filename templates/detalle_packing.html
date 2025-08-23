@@ -137,54 +137,70 @@
 <!-- El bloque de JavaScript no necesita ningún cambio funcional. -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // --- SECCIÓN DE ELEMENTOS GLOBALES ---
     const scanForm = document.getElementById('scan-form-packing');
     const scanInput = document.getElementById('scan-input-packing');
+    const scanBtn = scanForm.querySelector('.scan-btn'); // Obtenemos el botón
     const feedbackDiv = document.getElementById('scan-feedback-packing');
     const toggleOcultar = document.getElementById('toggle-ocultar-completados');
     const finalizationSection = document.getElementById('packing-finalization-section');
     const audioSuccess = new Audio("{{ url_for('static', filename='sounds/success.mp3') }}");
     const audioError = new Audio("{{ url_for('static', filename='sounds/error.mp3') }}");
 
-    // --- Lógica de desbloqueo de audio (opcional, pero buena práctica) ---
-    let audioUnlocked = false;
-    function unlockAudio() {
-        if (audioUnlocked) return;
-        new Audio("{{ url_for('static', filename='sounds/silent.mp3') }}").play().then(() => {
-            audioUnlocked = true;
-        }).catch(() => {});
-    }
-    document.body.addEventListener('click', unlockAudio, { once: true });
-    document.body.addEventListener('keydown', unlockAudio, { once: true });
+    // --- INICIO: Implementación del "Guardia" de Envío ---
+    let isSubmitting = false;
+    // --- FIN: Implementación del "Guardia" ---
 
-
+    // --- LÓGICA DE ESCANEO PRINCIPAL ---
     scanForm.addEventListener('submit', function(event) {
         event.preventDefault(); 
+        
+        // --- INICIO: Lógica del Guardia ---
+        if (isSubmitting) {
+            return;
+        }
+        isSubmitting = true;
+        scanBtn.disabled = true;
+        scanBtn.textContent = 'Procesando...';
+        // --- FIN: Lógica del Guardia ---
+
         const codigo = scanInput.value.trim();
-        if (!codigo) return;
+        if (!codigo) {
+            isSubmitting = false;
+            scanBtn.disabled = false;
+            scanBtn.textContent = 'Escanear';
+            return;
+        }
 
         fetch("{{ url_for('api_escanear_item_packing', orden_id=orden.id) }}", {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ codigo_articulo: codigo }),
         })
-        .then(res => res.json())
+        .then(res => {
+            if (!res.ok) { return res.json().then(errData => Promise.reject(errData)); }
+            return res.json();
+        })
         .then(data => {
             if (data.success) {
-                if(audioUnlocked) audioSuccess.play();
+                audioSuccess.play().catch(e => {});
                 updatePackingUI(data);
                 showPackingFeedback(data.message, 'success');
-            } else {
-                if(audioUnlocked) audioError.play();
-                showPackingFeedback(data.message || 'Ocurrió un error', 'error');
             }
         })
         .catch(error => {
-            console.error('Error en escaneo de packing:', error);
-            showPackingFeedback('Error de conexión.', 'error');
+            audioError.play().catch(e => {});
+            showPackingFeedback(error.message || 'Ocurrió un error desconocido.', 'error');
         })
         .finally(() => {
             scanInput.value = '';
             scanInput.focus();
+            
+            // --- INICIO: Liberación del Guardia ---
+            isSubmitting = false;
+            scanBtn.disabled = false;
+            scanBtn.textContent = 'Escanear';
+            // --- FIN: Liberación del Guardia ---
         });
     });
 

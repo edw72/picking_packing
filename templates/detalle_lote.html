@@ -184,16 +184,40 @@ document.addEventListener('DOMContentLoaded', function() {
     const toggleOcultar = document.getElementById('toggle-ocultar-completados');
     const scanForm = document.getElementById('scan-form');
     const scanInput = document.getElementById('scan-input');
+    const scanBtn = document.querySelector('.scan-btn'); // Obtenemos el botón
     const feedbackDiv = document.getElementById('scan-feedback');
     const modal = document.getElementById('modal-incidencia');
     const closeModalBtn = document.getElementById('modal-close');
     const incidenciaForm = document.getElementById('form-incidencia');
+    
+    // --- INICIO: Implementación del "Guardia" de Envío ---
+    let isSubmitting = false; 
+    // --- FIN: Implementación del "Guardia" ---
 
     // --- LÓGICA DE ESCANEO ---
     scanForm.addEventListener('submit', function(event) {
         event.preventDefault(); 
+        
+        // --- INICIO: Lógica del Guardia ---
+        // Si ya se está procesando un escaneo, no hacemos nada.
+        if (isSubmitting) {
+            return; 
+        }
+        // Bloqueamos nuevos envíos
+        isSubmitting = true;
+        scanBtn.disabled = true; // Deshabilitamos el botón visualmente
+        scanBtn.textContent = 'Procesando...';
+        // --- FIN: Lógica del Guardia ---
+
         const codigo = scanInput.value.trim();
-        if (!codigo) return;
+        if (!codigo) {
+            // Si el campo está vacío, liberamos el guardia
+            isSubmitting = false;
+            scanBtn.disabled = false;
+            scanBtn.textContent = 'Escanear';
+            return;
+        }
+        
         fetch("{{ url_for('api_escanear_item_lote', lote_id=lote.id) }}", {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ codigo_articulo: codigo }),
@@ -201,8 +225,19 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.success) { audioSuccess.play(); updateUI(data); showFeedback(data.message, 'success');
             } else { audioError.play(); showFeedback(data.message, 'error'); }
         }).catch(err => { console.error(err); showFeedback('Error de conexión.', 'error');
-        }).finally(() => { scanInput.value = ''; scanInput.focus(); });
+        }).finally(() => { 
+            scanInput.value = ''; 
+            scanInput.focus();
+            
+            // --- INICIO: Liberación del Guardia ---
+            // Cuando la petición termina (éxito o error), liberamos el formulario.
+            isSubmitting = false;
+            scanBtn.disabled = false;
+            scanBtn.textContent = 'Escanear';
+            // --- FIN: Liberación del Guardia ---
+        });
     });
+
 
     // --- LÓGICA DE INCIDENCIAS ---
     document.querySelectorAll('.incidencia-btn').forEach(btn => {
