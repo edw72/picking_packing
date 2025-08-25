@@ -137,33 +137,41 @@
 <!-- El bloque de JavaScript no necesita ningún cambio funcional. -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+
     // --- SECCIÓN DE ELEMENTOS GLOBALES ---
     const scanForm = document.getElementById('scan-form-packing');
     const scanInput = document.getElementById('scan-input-packing');
-    const scanBtn = scanForm.querySelector('.scan-btn'); // Obtenemos el botón
+    const scanBtn = scanForm.querySelector('.scan-btn');
     const feedbackDiv = document.getElementById('scan-feedback-packing');
     const toggleOcultar = document.getElementById('toggle-ocultar-completados');
     const finalizationSection = document.getElementById('packing-finalization-section');
     const audioSuccess = new Audio("{{ url_for('static', filename='sounds/success.mp3') }}");
     const audioError = new Audio("{{ url_for('static', filename='sounds/error.mp3') }}");
+    
+    // --- LÓGICA DE DESBLOQUEO DE AUDIO ---
+    // Esta lógica asegura que el audio funcione después de la primera interacción del usuario.
+    let audioIsUnlocked = false;
+    function unlockAudio() {
+        if (audioIsUnlocked) return;
+        new Audio("{{ url_for('static', filename='sounds/silent.mp3') }}").play().then(() => {
+            audioIsUnlocked = true;
+        }).catch(() => {});
+    }
+    document.body.addEventListener('click', unlockAudio, { once: true });
+    document.body.addEventListener('keydown', unlockAudio, { once: true });
 
-    // --- INICIO: Implementación del "Guardia" de Envío ---
+
+    // --- Guardia de envío para el escaneo ---
     let isSubmitting = false;
-    // --- FIN: Implementación del "Guardia" ---
 
     // --- LÓGICA DE ESCANEO PRINCIPAL ---
     scanForm.addEventListener('submit', function(event) {
         event.preventDefault(); 
-        
-        // --- INICIO: Lógica del Guardia ---
-        if (isSubmitting) {
-            return;
-        }
+        if (isSubmitting) return;
         isSubmitting = true;
         scanBtn.disabled = true;
         scanBtn.textContent = 'Procesando...';
-        // --- FIN: Lógica del Guardia ---
-
+        
         const codigo = scanInput.value.trim();
         if (!codigo) {
             isSubmitting = false;
@@ -183,27 +191,25 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(data => {
             if (data.success) {
-                audioSuccess.play().catch(e => {});
+                if (audioIsUnlocked) audioSuccess.play();
                 updatePackingUI(data);
                 showPackingFeedback(data.message, 'success');
             }
         })
         .catch(error => {
-            audioError.play().catch(e => {});
+            if (audioIsUnlocked) audioError.play();
             showPackingFeedback(error.message || 'Ocurrió un error desconocido.', 'error');
         })
         .finally(() => {
             scanInput.value = '';
             scanInput.focus();
-            
-            // --- INICIO: Liberación del Guardia ---
             isSubmitting = false;
             scanBtn.disabled = false;
             scanBtn.textContent = 'Escanear';
-            // --- FIN: Liberación del Guardia ---
         });
     });
 
+    // --- LÓGICA PARA BOTÓN "COMPLETAR" DEL ADMIN (CORREGIDA) ---
     document.querySelectorAll('.completar-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const itemId = this.dataset.itemId;
@@ -214,11 +220,13 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    if(audioUnlocked) audioSuccess.play();
+                    // CORRECCIÓN: Usamos la variable 'audioIsUnlocked' que sí existe
+                    if (audioIsUnlocked) audioSuccess.play();
                     updatePackingUI(data);
                     showPackingFeedback(data.message, 'success');
                 } else {
-                    if(audioUnlocked) audioError.play();
+                    // CORRECCIÓN: Usamos la variable 'audioIsUnlocked' que sí existe
+                    if (audioIsUnlocked) audioError.play();
                     showPackingFeedback(data.message || 'Error al completar', 'error');
                 }
             }).catch(err => {
@@ -228,25 +236,23 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    // --- LÓGICA PARA CHECKBOX "OCULTAR COMPLETADOS" ---
     toggleOcultar.addEventListener('change', function() {
         document.body.classList.toggle('ocultar-completados', this.checked);
     });
 
+    // --- FUNCIONES AUXILIARES DE UI ---
     function updatePackingUI(data) {
         const row = document.getElementById(`item-row-${data.codigo_articulo}`);
         if (!row) return;
-
         const texto = row.querySelector(`#progreso-texto-${data.codigo_articulo}`);
         const barra = row.querySelector(`#progreso-barra-${data.codigo_articulo}`);
-        
         if (texto) texto.textContent = `${data.escaneado} / ${data.solicitado}`;
-        
         if (barra) {
             const porcentaje = data.solicitado > 0 ? (data.escaneado / data.solicitado) * 100 : 100;
             barra.style.width = `${porcentaje}%`;
             barra.textContent = `${Math.round(porcentaje)}%`;
         }
-
         row.classList.toggle('item-completado', data.escaneado >= data.solicitado);
         checkIfPackingIsComplete();
     }
@@ -265,7 +271,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 completo = false;
             }
         });
-        
         if (completo) {
             finalizationSection.style.display = 'block';
         } else {
@@ -273,6 +278,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // --- INICIALIZACIÓN DE LA VISTA ---
     function inicializarVista() {
         document.querySelectorAll('.item-row').forEach(row => {
             const texto = row.querySelector('[id^="progreso-texto-"]').textContent;
@@ -288,32 +294,33 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     inicializarVista();
-});
+
+    // --- LÓGICA PARA LOTES DINÁMICOS ---
     const addLoteBtn = document.getElementById('add-lote-btn');
-            const lotesContainer = document.getElementById('lotes-container');
-
-            addLoteBtn.addEventListener('click', function() {
-                const newRow = document.createElement('div');
-                newRow.className = 'lote-input-row form-group';
-
-                const input = document.createElement('input');
-                input.type = 'number';
-                input.name = 'lote_cantidades'; // Usamos el mismo nombre para que form.getlist funcione
-                input.placeholder = 'Cantidad de unidades en este lote';
-                input.min = '1';
-                input.required = true;
-
-                const removeBtn = document.createElement('button');
-                removeBtn.type = 'button';
-                removeBtn.className = 'remove-lote-btn';
-                removeBtn.textContent = 'Quitar';
-                removeBtn.onclick = function() {
-                    lotesContainer.removeChild(newRow);
-                };
-
-                newRow.appendChild(input);
-                newRow.appendChild(removeBtn);
-                lotesContainer.appendChild(newRow);
-            });
+    const lotesContainer = document.getElementById('lotes-container');
+    
+    if (addLoteBtn) { // Verificamos que el botón exista antes de añadir el listener
+        addLoteBtn.addEventListener('click', function() {
+            const newRow = document.createElement('div');
+            newRow.className = 'lote-input-row form-group';
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.name = 'lote_cantidades';
+            input.placeholder = 'Cantidad de unidades en este lote';
+            input.min = '1';
+            input.required = true;
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'remove-lote-btn';
+            removeBtn.textContent = 'Quitar';
+            removeBtn.onclick = function() {
+                lotesContainer.removeChild(newRow);
+            };
+            newRow.appendChild(input);
+            newRow.appendChild(removeBtn);
+            lotesContainer.appendChild(newRow);
+        });
+    }
+});
 </script>
 {% endblock %}
