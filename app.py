@@ -1703,7 +1703,7 @@ def dashboard_conductor():
     )
 
 
-@app.route('/mi-ruta/detalle')
+'''@app.route('/mi-ruta/detalle')
 @login_required
 @conductor_required
 def detalle_ruta_conductor():
@@ -1733,6 +1733,49 @@ def detalle_ruta_conductor():
         'detalle_ruta_conductor.html',
         ruta=ruta,
         ordenes=ordenes_en_ruta,
+        total_gastado=total_gastado,
+        total_recibido=total_recibido,
+        balance=balance
+    )'''
+    
+@app.route('/mi-ruta/detalle')
+@login_required
+@conductor_required
+def detalle_ruta_conductor():
+    ruta = db.first_or_404(
+        db.select(HojaDeRuta).where(
+            HojaDeRuta.conductor_id == current_user.id,
+            HojaDeRuta.estado == 'EN_RUTA'
+        ),
+        description="No tienes una ruta activa asignada."
+    )
+    
+    # Obtenemos todas las órdenes de la ruta, cargando sus destinos y bultos
+    ordenes_en_ruta = db.session.execute(
+        db.select(Orden)
+        .where(Orden.hoja_de_ruta_id == ruta.id)
+        .options(joinedload(Orden.destino), joinedload(Orden.bultos))
+        .order_by(Orden.cliente_nombre)
+    ).scalars().unique().all()
+
+    # --- INICIO: NUEVA LÓGICA DE AGRUPACIÓN POR DESTINO ---
+    clientes_agrupados = defaultdict(list)
+    for orden in ordenes_en_ruta:
+        cliente_key = orden.cliente_nombre
+        clientes_agrupados[cliente_key].append(orden)
+    # --- FIN: NUEVA LÓGICA DE AGRUPACIÓN ---
+
+    # Cálculos financieros (sin cambios)
+    total_gastado = db.session.scalar(db.select(func.sum(GastoViaje.monto_gastado)).where(GastoViaje.hoja_de_ruta_id == ruta.id)) or 0.0
+    total_recibido = db.session.scalar(db.select(func.sum(Transaccion.monto_recibido)).where(Transaccion.hoja_de_ruta_id == ruta.id)) or 0.0
+    balance = (ruta.gastos_asignados + total_recibido) - total_gastado
+
+    return render_template(
+        'detalle_ruta_conductor.html',
+        ruta=ruta,
+        # Pasamos el diccionario agrupado por cliente
+        clientes_agrupados=clientes_agrupados,
+        total_ordenes=len(ordenes_en_ruta),
         total_gastado=total_gastado,
         total_recibido=total_recibido,
         balance=balance

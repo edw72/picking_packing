@@ -9,6 +9,7 @@
     .orden-card { border: 1px solid #ddd; border-left: 5px solid #337ab7; border-radius: 5px; padding: 1rem; margin-bottom: 1rem; }
     .orden-header { display: flex; justify-content: space-between; align-items: flex-start; }
     .orden-header h3 { margin: 0; font-size: 1.2rem; }
+    .orden-header h4 { margin: 0; font-size: 1.1rem; }
     .estado-ENTREGADO, .estado-ENTREGA_FALLIDA { background-color: #5cb85c; color: white; padding: 0.2em 0.5em; border-radius: 4px; font-size: 0.9em; }
     .estado-ENTREGA_FALLIDA { background-color: #d9534f; }
     .actions-form, .guia-form { margin-top: 1rem; display: flex; gap: 10px; flex-wrap: wrap; }
@@ -21,7 +22,16 @@
     .submit-btn { background-color: #337ab7; color: white; border: none; cursor: pointer; padding: 10px 15px; }
     .finalizar-ruta-btn { background-color: #28a745; color: white; border: none; padding: 15px; font-size: 1.2rem; width: 100%; cursor: pointer; border-radius: 5px; }
     .bulto-info { font-size: 0.9em; color: #555; background: #f9f9f9; padding: 0.5rem; border-radius: 4px; margin-top: 0.5rem; }
+    .cliente-group { border: 1px solid #ccc; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; background-color: #fdfdfd; }
+    .cliente-group h3 { margin-top: 0; color: #337ab7; }
+    .view-options { margin-bottom: 1rem; background-color: #f0f0f0; padding: 0.8rem; border-radius: 5px; }
+    .orden-card.is-completed { border-left-color: #5cb85c; }
+    .orden-card.is-failed { border-left-color: #d9534f; }
+    .hide-completed .orden-card.is-completed,
+    .hide-completed .orden-card.is-failed { display: none; }
+
     
+
     /* --- Estilos para el Resumen Financiero --- */
     .resumen-financiero { text-align: center; }
     .resumen-financiero .valor { font-size: 1.8rem; font-weight: bold; margin-bottom: 0.5rem; }
@@ -85,8 +95,11 @@
                     <label for="orden_id">Para la Orden</label>
                     <select name="orden_id" required>
                         <option value="">-- Seleccione una orden --</option>
-                        {% for orden in ordenes %}
-                        <option value="{{ orden.id }}">#{{ orden.numero_pedido }} - {{ orden.cliente_nombre }}</option>
+                        <!-- CORRECCIÓN: Usamos el diccionario agrupado para obtener todas las órdenes -->
+                        {% for cliente, ordenes_del_cliente in clientes_agrupados.items() %}
+                            {% for orden in ordenes_del_cliente %}
+                                <option value="{{ orden.id }}">#{{ orden.numero_pedido }} - {{ orden.cliente_nombre }}</option>
+                            {% endfor %}
                         {% endfor %}
                     </select>
                 </div>
@@ -103,26 +116,42 @@
         </div>
     </div>
 
-    <!-- Columna Derecha: Lista de Órdenes -->
+    
+    <!-- Columna Derecha: Lista de Órdenes (GRANDES CAMBIOS) -->
     <div class="card">
-        <h2>Órdenes a Entregar ({{ ordenes|length }})</h2>
-        {% for orden in ordenes %}
-        <div class="orden-card">
-            <div class="orden-header">
-                <div>
-                    <h3>#{{ orden.numero_pedido }}</h3>
-                    <p style="margin: 0;"><strong>Cliente:</strong> {{ orden.cliente_nombre }}</p>
-                    <p style="margin: 0.5rem 0;"><strong>Destino:</strong> {{ orden.destino.nombre if orden.destino else 'Sin Asignar' }}</p>
-                </div>
-                <div>
-                    {% if orden.estado in ['ENTREGADO', 'ENTREGA_FALLIDA'] %}
-                        <span class="estado-{{ orden.estado }}">{{ orden.estado.replace('_', ' ') }}</span>
-                    {% else %}
-                        <span style="color: #777;">En Reparto</span>
-                    {% endif %}
-                </div>
-            </div>
-            
+        <h2>Órdenes a Entregar ({{ total_ordenes }})</h2>
+        
+        <!-- Checkbox para Ocultar completadas -->
+        <div class="view-options">
+            <label>
+                <input type="checkbox" id="toggle-hide-completed">
+                Ocultar entregas completadas o fallidas
+            </label>
+        </div>
+
+        <div id="lista-entregas">
+            <!-- Bucle Exterior: por cada CLIENTE -->
+            {% for cliente, ordenes_del_cliente in clientes_agrupados.items() %}
+            <div class="cliente-group">
+                <h3>{{ cliente }} ({{ ordenes_del_cliente|length }} orden/es)</h3>
+                
+                <!-- Bucle Interior: por cada orden de este CLIENTE -->
+                {% for orden in ordenes_del_cliente %}
+                <div class="orden-card {% if orden.estado == 'ENTREGADO' %}is-completed{% endif %} {% if orden.estado == 'ENTREGA_FALLIDA' %}is-failed{% endif %}">
+                    <div class="orden-header">
+                        <div>
+                            <h4>#{{ orden.numero_pedido }}</h4>
+                            <p style="margin: 0.5rem 0;"><strong>Destino:</strong> {{ orden.destino.nombre if orden.destino else 'Sin Asignar' }}</p>
+                        </div>
+                        <div>
+                            {% if orden.estado in ['ENTREGADO', 'ENTREGA_FALLIDA'] %}
+                                <span class="estado-{{ orden.estado }}">{{ orden.estado.replace('_', ' ') }}</span>
+                            {% else %}
+                                <span style="color: #777;">En Reparto</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
             <div class="bulto-info">
                 <strong>Bultos ({{ orden.bultos|length }}):</strong> 
                 {% set bulto_types = {} %}
@@ -138,31 +167,35 @@
                 {% endfor %}
             </div>
 
-            <form action="{{ url_for('actualizar_estado_orden', orden_id=orden.id) }}" method="POST" class="actions-form">
-                <select name="estado">
-                    <option value="ENTREGADO">Entregado con Éxito</option>
-                    <option value="ENTREGA_FALLIDA">Entrega Fallida</option>
-                </select>
-                <button type="submit">Actualizar Estado</button>
-            </form>
+                    <form action="{{ url_for('actualizar_estado_orden', orden_id=orden.id) }}" method="POST" class="actions-form">
+                        <select name="estado">
+                            <option value="ENTREGADO">Entregado con Éxito</option>
+                            <option value="ENTREGA_FALLIDA">Entrega Fallida</option>
+                        </select>
+                        <button type="submit">Actualizar Estado</button>
+                    </form>
 
-            <form action="{{ url_for('guardar_guia_encomienda', orden_id=orden.id) }}" method="POST" class="guia-form">
-                <input type="text" name="guia_encomienda" placeholder="Nº de Guía de Encomienda" value="{{ orden.guia_encomienda if orden.guia_encomienda }}">
-                <button type="submit">Guardar Guía</button>
-            </form>
+                    <form action="{{ url_for('guardar_guia_encomienda', orden_id=orden.id) }}" method="POST" class="guia-form">
+                       <input type="text" name="guia_encomienda" placeholder="Nº de Guía de Encomienda" value="{{ orden.guia_encomienda or '' }}">
+                       <button type="submit">Guardar Guía</button>
+                    </form>
+                    <!-- === FIN: FORMULARIOS MOVIDOS === -->
+                </div>
+                {% endfor %}
+            </div>
+            {% endfor %}
         </div>
-        {% endfor %}
     </div>
 </div>
 
 <div class="card">
-    <!-- Contamos las órdenes pendientes directamente en Jinja2 -->
-    {% set ordenes_pendientes = ordenes|rejectattr('estado', 'in', ['ENTREGADO', 'ENTREGA_FALLIDA'])|list|length %}
+    <!-- CORRECCIÓN: Necesitamos pasar todas las órdenes para el conteo -->
+    {% set todas_las_ordenes = clientes_agrupados.values()|sum(start=[]) %}
+    {% set ordenes_pendientes = todas_las_ordenes|rejectattr('estado', 'in', ['ENTREGADO', 'ENTREGA_FALLIDA'])|list|length %}
 
-    <form action="{{ url_for('finalizar_ruta_conductor') }}" method="POST" onsubmit="return confirm('¿Está seguro de que desea finalizar esta ruta? No podrá realizar más cambios.');">
+    <form action="{{ url_for('finalizar_ruta_conductor') }}" method="POST" onsubmit="return confirm('¿Está seguro de que desea finalizar esta ruta?');">
         <input type="hidden" name="ruta_id" value="{{ ruta.id }}">
-        <button type="submit" class="finalizar-ruta-btn" 
-                {% if ordenes_pendientes > 0 %}disabled{% endif %}>
+        <button type="submit" class="finalizar-ruta-btn" {% if ordenes_pendientes > 0 %}disabled{% endif %}>
             {% if ordenes_pendientes > 0 %}
                 Finalizar Ruta ({{ ordenes_pendientes }} pendiente(s))
             {% else %}
@@ -171,4 +204,21 @@
         </button>
     </form>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // --- INICIO: Nuevo script para ocultar completadas ---
+    const toggleCheckbox = document.getElementById('toggle-hide-completed');
+    const entregasContainer = document.getElementById('lista-entregas');
+
+    if (toggleCheckbox) {
+        toggleCheckbox.addEventListener('change', function() {
+            entregasContainer.classList.toggle('hide-completed', this.checked);
+        });
+    }
+    // --- FIN: Nuevo script ---
+});
+</script>
 {% endblock %}
