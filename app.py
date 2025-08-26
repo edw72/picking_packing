@@ -1937,36 +1937,15 @@ def api_destinos():
 @login_required
 @logistica_required
 def verificar_carga_ruta(ruta_id):
+    # Esta función ahora se vuelve muy simple
     ruta = db.get_or_404(HojaDeRuta, ruta_id)
     if ruta.estado != 'EN_PREPARACION':
         flash("Esta ruta no puede ser verificada porque no está en preparación.", "warning")
         return redirect(url_for('detalle_ruta', ruta_id=ruta.id))
     
-    # 1. Obtenemos TODOS los bultos que DEBERÍAN estar en la ruta desde la BD
     bultos_en_ruta = db.session.execute(
         db.select(Bulto).join(Bulto.orden).where(Orden.hoja_de_ruta_id == ruta.id)
     ).scalars().all()
-    
-    # Creamos un conjunto (set) con los IDs válidos para una búsqueda rápida
-    ids_validos_en_ruta = {b.identificador_unico for b in bultos_en_ruta}
-
-    # --- INICIO: LÓGICA DE SINCRONIZACIÓN DE SESIÓN ---
-    session_key = f'carga_verificada_{ruta_id}'
-    
-    # 2. Obtenemos los bultos que ESTABAN verificados en la sesión
-    bultos_verificados_previamente = session.get(session_key, [])
-    
-    # 3. Creamos una nueva lista limpia que solo contiene los bultos que
-    #    estaban en la sesión Y que todavía son válidos para esta ruta.
-    #    Esto elimina automáticamente los bultos de órdenes que se hayan quitado.
-    bultos_verificados_actualizados = [
-        identificador for identificador in bultos_verificados_previamente 
-        if identificador in ids_validos_en_ruta
-    ]
-    
-    # 4. Guardamos la lista limpia de vuelta en la sesión.
-    session[session_key] = bultos_verificados_actualizados
-    # --- FIN: LÓGICA DE SINCRONIZACIÓN ---
     
     return render_template('verificar_carga_ruta.html', ruta=ruta, bultos=bultos_en_ruta)
 
@@ -1978,24 +1957,18 @@ def api_escanear_bulto_carga(ruta_id):
     data = request.get_json()
     identificador_escaneado = data.get('identificador_unico', '').strip()
 
-    # Verificamos que el bulto escaneado realmente pertenece a esta ruta
     bulto = db.session.execute(db.select(Bulto).join(Bulto.orden).where(
         Bulto.identificador_unico == identificador_escaneado,
         Orden.hoja_de_ruta_id == ruta_id
     )).scalar_one_or_none()
 
     if not bulto:
-        return jsonify({
-            'success': False, 
-            'message': f'¡Bulto incorrecto! El bulto {identificador_escaneado} no pertenece a esta ruta.'
-        }), 422
+        return jsonify({'success': False, 'message': f'¡Bulto incorrecto!'}), 422
 
-    # Guardamos los bultos verificados en la sesión
-    session_key = f'carga_verificada_{ruta_id}'
-    bultos_verificados = session.get(session_key, [])
-    if identificador_escaneado not in bultos_verificados:
-        bultos_verificados.append(identificador_escaneado)
-        session[session_key] = bultos_verificados
+    # Actualizamos directamente la base de datos
+    if not bulto.verificado_despacho:
+        bulto.verificado_despacho = True
+        db.session.commit()
 
     return jsonify({
         'success': True,
@@ -2045,18 +2018,27 @@ def confirmar_salida_ruta(ruta_id):
 @login_required
 @logistica_required
 def confirmar_salida_ruta(ruta_id):
+    """
+    Finaliza el proceso de verificación de carga y pone la ruta en movimiento.
+    Esta función se ejecuta al hacer clic en el botón final de la página de escaneo.
+    """
     ruta = db.get_or_404(HojaDeRuta, ruta_id)
     
-    # Doble verificación de seguridad
-    session_key = f'carga_verificada_{ruta_id}'
-    bultos_verificados = session.get(session_key, [])
-    total_bultos_en_ruta = db.session.scalar(db.select(func.count(Bulto.id)).join(Bulto.orden).where(Orden.hoja_de_ruta_id == ruta.id))
+    # --- 1. Verificación de Seguridad contra la Base de Datos ---
+    # Contamos cuántos bultos en la ruta todavía NO han sido marcados como verificados.
+    bultos_no_verificados = db.session.scalar(
+        db.select(func.count(Bulto.id)).join(Bulto.orden).where(
+            Orden.hoja_de_ruta_id == ruta_id,
+            Bulto.verificado_despacho == False
+        )
+    )
 
-    if len(bultos_verificados) != total_bultos_en_ruta:
-        flash("Error de seguridad: No todos los bultos de la ruta han sido verificados.", "error")
+    # Si el conteo es mayor que cero, significa que el escaneo no está completo.
+    if bultos_no_verificados > 0:
+        flash(f"Error de seguridad: Aún faltan {bultos_no_verificados} bultos por verificar en la base de datos.", "error")
         return redirect(url_for('verificar_carga_ruta', ruta_id=ruta.id))
 
-    ### --- INICIO: LÓGICA CLAVE Y CORREGIDA --- ###
+    # --- 2. Lógica de Cambio de Estado (Interna vs. Externa) ---
     # Se decide el estado final basado en el tipo de entrega de la ruta.
     
     if ruta.tipo_entrega == 'INTERNA':
@@ -2069,18 +2051,22 @@ def confirmar_salida_ruta(ruta_id):
         ruta.estado = 'FINALIZADA'
         ruta.fecha_finalizacion = datetime.datetime.utcnow()
         mensaje_flash = f'La entrega externa de la Ruta #{ruta.id} ha sido confirmada y finalizada.'
-    ### --- FIN: LÓGICA CLAVE Y CORREGIDA --- ###
     
-    # Esta lógica es común para ambos casos: todas las órdenes se marcan como despachadas.
+    # --- 3. Actualización de las Órdenes ---
+    # Esta lógica es común para ambos tipos de ruta: todas las órdenes se marcan como despachadas.
     for orden in ruta.ordenes:
         orden.estado = 'DESPACHADO'
         orden.fecha_despacho = datetime.datetime.utcnow()
     
+    # --- 4. Guardar todos los cambios en la Base de Datos ---
     db.session.commit()
-    session.pop(session_key, None) # Limpiamos la sesión
+
+    # (Opcional pero recomendado) Limpiamos la sesión por si quedaba algún residuo
+    session.pop(f'carga_verificada_{ruta_id}', None)
 
     flash(mensaje_flash, 'success')
-    return redirect(url_for('detalle_ruta', ruta_id=ruta.id))    
+    return redirect(url_for('detalle_ruta', ruta_id=ruta.id))  
+  
 
 @app.route('/orden/<int:orden_id>/guardar-guia', methods=['POST'])
 @login_required
@@ -2126,14 +2112,13 @@ def borrar_ruta(ruta_id):
 def reabrir_ruta(ruta_id):
     ruta = db.get_or_404(HojaDeRuta, ruta_id)
 
-    # --- Validaciones de seguridad ---
+    # --- Validaciones de seguridad (sin cambios) ---
     if ruta.estado != 'EN_RUTA':
         flash('Solo se pueden reabrir las rutas que están "En Ruta".', 'error')
         return redirect(url_for('detalle_ruta', ruta_id=ruta.id))
 
-    # Verificar si ya hay actividad (entregas o finanzas)
     if ruta.transacciones.count() > 0 or ruta.gastos_viaje.count() > 0:
-        flash('No se puede reabrir: ya se han registrado transacciones o gastos en esta ruta.', 'error')
+        flash('No se puede reabrir: ya se han registrado transacciones o gastos.', 'error')
         return redirect(url_for('detalle_ruta', ruta_id=ruta.id))
         
     orden_avanzada = db.session.scalar(db.select(Orden).where(
@@ -2141,18 +2126,20 @@ def reabrir_ruta(ruta_id):
         Orden.estado.in_(['ENTREGADO', 'ENTREGA_FALLIDA'])
     ).limit(1))
     if orden_avanzada:
-        flash('No se puede reabrir: el conductor ya ha actualizado el estado de al menos una entrega.', 'error')
+        flash('No se puede reabrir: el conductor ya ha actualizado el estado de una entrega.', 'error')
         return redirect(url_for('detalle_ruta', ruta_id=ruta.id))
 
-    # --- Si pasa las validaciones, procedemos a revertir ---
+    # --- INICIO: LÓGICA CORREGIDA ---
+    # Simplemente revertimos los estados. NO tocamos el estado de los bultos.
     ruta.estado = 'EN_PREPARACION'
-    # También revertimos el estado de las órdenes
     for orden in ruta.ordenes:
         orden.estado = 'LISTO_PARA_DESPACHO'
-        orden.fecha_despacho = None # Anulamos la fecha de despacho
+        orden.fecha_despacho = None
     
     db.session.commit()
-    flash(f'¡La Ruta #{ruta.id} ha sido reabierta! Ahora puede modificar las órdenes.', 'success')
+    # --- FIN: LÓGICA CORREGIDA ---
+
+    flash(f'¡La Ruta #{ruta.id} ha sido reabierta! Puede modificar las órdenes.', 'success')
     return redirect(url_for('detalle_ruta', ruta_id=ruta.id))
 
 # 5. PUNTO DE ENTRADA

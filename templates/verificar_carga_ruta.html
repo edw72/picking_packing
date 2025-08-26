@@ -26,33 +26,26 @@
 {% block content %}
 <div class="container">
     <a href="{{ url_for('detalle_ruta', ruta_id=ruta.id) }}">← Volver al Detalle de la Ruta</a>
-
     <div class="card" style="margin-top: 1rem;">
         <h1>Verificación de Carga para Ruta #{{ ruta.id }}</h1>
-        <p>Escanee el código QR de cada bulto mientras se entrega al conductor para confirmar la salida.</p>
-
+        <p>Escanee el código QR de cada bulto para confirmar la salida.</p>
         <div class="scan-area">
             <input type="text" id="scan-input-carga" class="scan-input" placeholder="Escanear QR del bulto..." autofocus>
         </div>
         
-         <!-- === INICIO: CAMBIO EN LA LÓGICA DE JINJA2 === -->
-        {% set bultos_verificados_en_sesion = session.get('carga_verificada_' + ruta.id|string, []) %}
-        <h2>Bultos a Verificar ({{ bultos|length - bultos_verificados_en_sesion|length }} pendientes de {{ bultos|length }} total)</h2>
-        <!-- === FIN: CAMBIO EN LA LÓGICA DE JINJA2 === -->
+        <h2>Bultos a Verificar</h2>
         
         <ul id="bulto-list-carga" class="bulto-list">
             {% for bulto in bultos %}
-            <!-- Verificamos si este bulto ya está en la sesión al cargar la página -->
-            {% set ya_verificado = bulto.identificador_unico in bultos_verificados_en_sesion %}
-            <li id="bulto-{{ bulto.identificador_unico }}" class="{{ 'verificado' if ya_verificado }}">
+            <!-- Leemos el estado directamente del objeto bulto -->
+            <li id="bulto-{{ bulto.identificador_unico }}" class="{{ 'verificado' if bulto.verificado_despacho }}">
                 <span class="bulto-id">{{ bulto.identificador_unico }}</span>
-                <span class="bulto-status {{ 'status-verificado' if ya_verificado else 'status-pendiente' }}">
-                    {{ 'Verificado' if ya_verificado else 'Pendiente' }}
+                <span class="bulto-status {{ 'status-verificado' if bulto.verificado_despacho else 'status-pendiente' }}">
+                    {{ 'Verificado' if bulto.verificado_despacho else 'Pendiente' }}
                 </span>
             </li>
             {% endfor %}
         </ul>
-
 
         <div style="margin-top: 2rem;">
              <form action="{{ url_for('confirmar_salida_ruta', ruta_id=ruta.id) }}" method="POST">
@@ -66,25 +59,24 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // El script ahora es mucho más simple y robusto
     const scanInput = document.getElementById('scan-input-carga');
-    const bultoList = document.getElementById('bulto-list-carga');
     const finalizarBtn = document.getElementById('finalizar-btn-carga');
     const totalBultos = {{ bultos|length }};
-     // --- INICIO: CAMBIO EN EL SCRIPT ---
-    // Contamos cuántos ya están verificados al cargar la página
+    
+    // Contamos al inicio
     let bultosVerificados = document.querySelectorAll('#bulto-list-carga li.verificado').length;
 
-    // Función para comprobar si todo está completo
     function checkIfComplete() {
         if (bultosVerificados >= totalBultos) {
             finalizarBtn.disabled = false;
             scanInput.disabled = true;
             scanInput.placeholder = "¡Verificación completa!";
+        } else {
+            finalizarBtn.disabled = true;
         }
     }
-    // Comprobamos el estado al iniciar
     checkIfComplete();
-    // --- FIN: CAMBIO EN EL SCRIPT ---
 
     const audioSuccess = new Audio("{{ url_for('static', filename='sounds/success.mp3') }}");
     const audioError = new Audio("{{ url_for('static', filename='sounds/error.mp3') }}");
@@ -136,8 +128,7 @@ document.addEventListener('DOMContentLoaded', function() {
             bultosVerificados++;
         }
     }
-
-    
+ 
 });
 </script>
 {% endblock %}
