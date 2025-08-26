@@ -28,7 +28,6 @@
     .remove-btn { background-color: #d9534f; }
     .start-route-btn { background-color: #337ab7; }
 
-    /* --- Nuevos Estilos para el Panel de Monitoreo --- */
     .resumen-financiero { text-align: center; margin-bottom: 2rem; }
     .resumen-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; }
     .resumen-financiero .valor { font-size: 1.8rem; font-weight: bold; margin-bottom: 0.5rem; }
@@ -36,27 +35,17 @@
     .balance-positivo { color: #28a745; }
     .balance-negativo { color: #d9534f; }
     
-    .estado-DESPACHADO { background-color: #337ab7; color: white; padding: 0.2em 0.5em; border-radius: 4px; }
-    .estado-ENTREGADO { background-color: #5cb85c; color: white; padding: 0.2em 0.5em; border-radius: 4px; }
-    .estado-ENTREGA_FALLIDA { background-color: #d9534f; color: white; padding: 0.2em 0.5em; border-radius: 4px; }
+    .estado-DESPACHADO, .estado-ENTREGADO, .estado-ENTREGA_FALLIDA { 
+        color: white; padding: 0.2em 0.5em; border-radius: 4px; display: inline-block;
+    }
+    .estado-DESPACHADO { background-color: #337ab7; }
+    .estado-ENTREGADO { background-color: #5cb85c; }
+    .estado-ENTREGA_FALLIDA { background-color: #d9534f; }
     .guia-info { font-style: italic; color: #555; font-size: 0.9em; }
 
-    .form-iniciar-ruta {
-        display: flex;
-        gap: 1rem;
-        align-items: center;
-    }
-    .form-iniciar-ruta .form-group {
-        flex-grow: 1;
-        margin: 0;
-    }
-    .form-iniciar-ruta input {
-        padding: 11px;
-        font-size: 16px;
-        border: 1px solid #ccc;
-        border-radius: 5px;
-        width: 150px; /* Ancho fijo para el input de dinero */
-    }
+    .form-iniciar-ruta { display: flex; gap: 1rem; align-items: center; }
+    .form-iniciar-ruta .form-group { flex-grow: 1; margin: 0; }
+    .form-iniciar-ruta input { padding: 11px; font-size: 16px; border: 1px solid #ccc; border-radius: 5px; width: 150px; }
 </style>
 {% endblock %}
 
@@ -78,22 +67,28 @@
             {% if ruta.fecha_finalizacion %}
                 (Finalizada: {{ ruta.fecha_finalizacion|localtime }})
             {% endif %}
-            Gastos Asignados: ¢{{ '%.2f'|format(ruta.gastos_asignados) }}
+            | Gastos Asignados: ¢{{ '%.2f'|format(ruta.gastos_asignados) }}
         </p>
     </div>
     
-    <div>
+    <!-- === INICIO: CORRECCIÓN ESTRUCTURAL === -->
+    <!-- Este div contiene SOLO los botones de acción del header -->
+    <div class="header-actions">
         {% if ruta.estado == 'EN_PREPARACION' %}
-        <!-- === INICIO: FORMULARIO MODIFICADO === -->
         <form action="{{ url_for('iniciar_ruta', ruta_id=ruta.id) }}" method="POST" class="form-iniciar-ruta" onsubmit="return confirm('¿Está seguro? Esta acción guardará los gastos y llevará a la pantalla de verificación.');">
             <div class="form-group">
                 <input type="number" name="gastos_asignados" value="{{ '%.2f'|format(ruta.gastos_asignados) }}"
                        step="0.01" min="0" required title="Gastos asignados para la ruta">
             </div>
             <button type="submit" class="action-btn start-route-btn">Verificar e Iniciar Ruta</button>
-        </form>
+        </form> <!-- Este formulario se cierra aquí -->
+        {% elif ruta.estado == 'EN_RUTA' %}
+        <form action="{{ url_for('reabrir_ruta', ruta_id=ruta.id) }}" method="POST" onsubmit="return confirm('¿Reabrir esta ruta para edición? Esto solo es posible si el conductor no ha iniciado las entregas.');">
+            <button type="submit" class="action-btn" style="background-color: #f0ad4e;">Reabrir Ruta</button>
+        </form> <!-- Este formulario se cierra aquí -->
         {% endif %}
     </div>
+    <!-- === FIN: CORRECCIÓN ESTRUCTURAL === -->
 </div>
 
 {% with messages = get_flashed_messages(with_categories=true) %}
@@ -131,10 +126,10 @@
 <div class="ruta-grid" style="margin-top: 2rem;">
     <!-- Columna Izquierda: Órdenes -->
     <div class="grid-column">
-        <h2>Órdenes en la Ruta ({{ ordenes_asignadas|length }})</h2>
+        <h2 style="margin-top: 2rem;">Órdenes en la Ruta ({{ ordenes_asignadas|length }})</h2>
         {% if ordenes_asignadas %}
         <table>
-             <thead> <tr> <th>Pedido #</th> <th>Cliente y Destino</th> <th>Estado Actual</th> <th>Info Adicional</th> <th>Acción</th> </tr> </thead>
+            <thead> <tr> <th>Pedido #</th> <th>Cliente y Destino</th> <th>Estado Actual</th> <th>Info Adicional</th> <th>Acción</th> </tr> </thead>
             <tbody>
                 {% for orden in ordenes_asignadas %}
                 <tr>
@@ -150,13 +145,13 @@
                         {% endif %}
                     </td>
                     <td>
-                        <!-- El botón solo aparece si la ruta está en preparación -->
                         {% if ruta.estado == 'EN_PREPARACION' %}
+                        <!-- Este es un formulario completamente independiente -->
                         <form action="{{ url_for('quitar_orden_de_ruta', orden_id=orden.id) }}" method="POST" onsubmit="return confirm('¿Quitar esta orden de la ruta?');">
                             <button type="submit" class="remove-btn">Quitar</button>
                         </form>
                         {% else %}
-                            - <!-- Si la ruta ya inició, no hay acción posible -->
+                            -
                         {% endif %}
                     </td>
                 </tr>
@@ -166,10 +161,10 @@
         {% else %}
         <p>Aún no se han añadido órdenes a esta hoja de ruta.</p>
         {% endif %}
-
-        <!-- Mostramos la caja de añadir órdenes solo si la ruta está en preparación -->
+        
         {% if ruta.estado == 'EN_PREPARACION' %}
-            <h3 style="margin-top: 2rem;">Añadir Órdenes Disponibles</h3>
+            <h2>Añadir Órdenes Disponibles</h2>
+            <!-- Este es un formulario completamente independiente -->
             <form action="{{ url_for('agregar_ordenes_a_ruta', ruta_id=ruta.id) }}" method="POST">
                 {% if ordenes_disponibles %}
                 <table>
@@ -190,6 +185,8 @@
                 {% endif %}
             </form>
         {% endif %}
+
+        
     </div>
 
     <!-- Columna Derecha: Movimientos Financieros -->

@@ -123,6 +123,14 @@
                     </td>
                     <td>
                         <a href="{{ url_for('detalle_ruta', ruta_id=ruta.id) }}" class="action-link" style="background-color: #337ab7;">Ver Detalle</a>
+
+                         <!-- === INICIO: Botón de borrado condicional === -->
+                        {% if ruta.estado == 'EN_PREPARACION' %}
+                        <form action="{{ url_for('borrar_ruta', ruta_id=ruta.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('¿Está seguro de que desea eliminar esta hoja de ruta? Esta acción no se puede deshacer.');">
+                            <button type="submit" class="remove-btn">Borrar</button>
+                        </form>
+                        {% endif %}
+                        <!-- === FIN: Botón de borrado condicional === -->
                     </td>
                 </tr>
                 {% else %}
