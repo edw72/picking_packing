@@ -4,7 +4,28 @@
 
 {% block styles %}
 <style>
-    .card { background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem; }
+    /* .card { background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem; }
+    h2, h3 { border-bottom: 1px solid #eee; padding-bottom: 0.5rem; margin-bottom: 1rem; }
+    .orden-card { border: 1px solid #ddd; border-left: 5px solid #337ab7; border-radius: 5px; padding: 1rem; margin-bottom: 1rem; }
+    .orden-header { display: flex; justify-content: space-between; align-items: flex-start; }
+    .orden-header h4 { margin: 0; font-size: 1.1rem; }
+    .estado-ENTREGADO, .estado-ENTREGA_FALLIDA { background-color: #5cb85c; color: white; padding: 0.2em 0.5em; border-radius: 4px; font-size: 0.9em; }
+    .estado-ENTREGA_FALLIDA { background-color: #d9534f; }
+    .actions-form, .guia-form { margin-top: 1rem; display: flex; gap: 10px; flex-wrap: wrap; align-items: center;}
+    .actions-form select, .actions-form button, .guia-form input, .guia-form button { padding: 8px 12px; border-radius: 5px; border: 1px solid #ccc; }
+    .form-grid { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
+    @media (min-width: 992px) { .form-grid { grid-template-columns: 1fr 2fr; } }
+    .submit-btn { background-color: #337ab7; color: white; border: none; cursor: pointer; }
+    .finalizar-ruta-btn { background-color: #28a745; color: white; border: none; padding: 15px; font-size: 1.2rem; width: 100%; cursor: pointer; border-radius: 5px; }
+    .finalizar-ruta-btn:disabled { background-color: #ccc; cursor: not-allowed; }
+    .bulto-info { font-size: 0.9em; color: #555; background: #f9f9f9; padding: 0.5rem; border-radius: 4px; margin-top: 0.5rem; }
+    .cliente-group { border: 1px solid #ccc; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; background-color: #fdfdfd; }
+    .cliente-group h3 { margin-top: 0; color: #337ab7; }
+    .view-options { margin-bottom: 1rem; background-color: #f0f0f0; padding: 0.8rem; border-radius: 5px; }
+    .orden-card.is-completed { border-left-color: #5cb85c; }
+    .orden-card.is-failed { border-left-color: #d9534f; } */
+
+     .card { background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem; }
     h2 { border-bottom: 2px solid #eee; padding-bottom: 0.5rem; margin-bottom: 1rem; }
     .orden-card { border: 1px solid #ddd; border-left: 5px solid #337ab7; border-radius: 5px; padding: 1rem; margin-bottom: 1rem; }
     .orden-header { display: flex; justify-content: space-between; align-items: flex-start; }
@@ -30,8 +51,6 @@
     .hide-completed .orden-card.is-completed,
     .hide-completed .orden-card.is-failed { display: none; }
 
-    
-
     /* --- Estilos para el Resumen Financiero --- */
     .resumen-financiero { text-align: center; }
     .resumen-financiero .valor { font-size: 1.8rem; font-weight: bold; margin-bottom: 0.5rem; }
@@ -39,12 +58,18 @@
     .resumen-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; }
     .balance-positivo { color: #28a745; }
     .balance-negativo { color: #d9534f; }
+    
+    /* La clase que controla la visibilidad */
+    .hide-completed .orden-card.is-completed,
+    .hide-completed .orden-card.is-failed {
+        display: none;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
+<!-- ... (Toda la parte superior del HTML de la página no cambia) ... -->
 <a href="{{ url_for('dashboard_conductor') }}" class="back-link">← Volver a mi Dashboard</a>
-
 <div class="card resumen-financiero">
     <h2>Resumen Financiero de la Ruta</h2>
     <div class="resumen-grid">
@@ -66,7 +91,6 @@
         </div>
     </div>
 </div>
-
 
 <div class="form-grid">
     <!-- Columna Izquierda: Gastos y Pagos -->
@@ -209,16 +233,47 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // --- INICIO: Nuevo script para ocultar completadas ---
+    // --- INICIO: NUEVO SCRIPT MEJORADO CON LOCALSTORAGE ---
     const toggleCheckbox = document.getElementById('toggle-hide-completed');
     const entregasContainer = document.getElementById('lista-entregas');
+    const storageKey = 'conductor_hide_completed'; // Una clave única para este ajuste
 
-    if (toggleCheckbox) {
-        toggleCheckbox.addEventListener('change', function() {
-            entregasContainer.classList.toggle('hide-completed', this.checked);
-        });
+    // Función para aplicar el estado (ocultar o mostrar)
+    function applyState(shouldHide) {
+        if (shouldHide) {
+            entregasContainer.classList.add('hide-completed');
+        } else {
+            entregasContainer.classList.remove('hide-completed');
+        }
     }
-    // --- FIN: Nuevo script ---
+
+    // Al cargar la página
+    function initializeView() {
+        // 1. Leemos la preferencia guardada en localStorage.
+        const savedPreference = localStorage.getItem(storageKey);
+
+        // 2. Decidimos el estado inicial.
+        // Por defecto, queremos ocultar. Si no hay nada guardado (primera visita)
+        // o si lo guardado es 'true', entonces ocultamos.
+        let shouldHide = savedPreference === null || savedPreference === 'true';
+        
+        // 3. Sincronizamos el checkbox y la vista.
+        toggleCheckbox.checked = shouldHide;
+        applyState(shouldHide);
+    }
+
+    // Listener para cuando el conductor cambia el checkbox
+    toggleCheckbox.addEventListener('change', function() {
+        const isChecked = this.checked;
+        // Aplicamos el cambio visual inmediatamente
+        applyState(isChecked);
+        // Guardamos la preferencia en localStorage para la próxima recarga
+        localStorage.setItem(storageKey, isChecked);
+    });
+
+    // Ejecutamos la inicialización al cargar la página
+    initializeView();
+    // --- FIN: NUEVO SCRIPT ---
 });
 </script>
 {% endblock %}

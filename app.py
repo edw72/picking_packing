@@ -1703,41 +1703,6 @@ def dashboard_conductor():
         historial_rutas=historial_rutas
     )
 
-
-'''@app.route('/mi-ruta/detalle')
-@login_required
-@conductor_required
-def detalle_ruta_conductor():
-    # Buscamos la única ruta activa para el conductor
-    ruta = db.first_or_404(
-        db.select(HojaDeRuta).where(
-            HojaDeRuta.conductor_id == current_user.id,
-            HojaDeRuta.estado == 'EN_RUTA'
-        ),
-        description="No tienes una ruta activa asignada."
-    )
-    
-    # Obtenemos todas las órdenes de la ruta para mostrarlas
-    ordenes_en_ruta = ruta.ordenes.order_by(Orden.numero_pedido).all()
-    total_gastado = db.session.scalar(
-        db.select(func.sum(GastoViaje.monto_gastado)).where(GastoViaje.hoja_de_ruta_id == ruta.id)
-    ) or 0.0
-    
-    total_recibido = db.session.scalar(
-        db.select(func.sum(Transaccion.monto_recibido)).where(Transaccion.hoja_de_ruta_id == ruta.id)
-    ) or 0.0
-    
-    balance = (ruta.gastos_asignados + total_recibido) - total_gastado
-    ### --- FIN: Cálculos financieros --- ###
-
-    return render_template(
-        'detalle_ruta_conductor.html',
-        ruta=ruta,
-        ordenes=ordenes_en_ruta,
-        total_gastado=total_gastado,
-        total_recibido=total_recibido,
-        balance=balance
-    )'''
     
 @app.route('/mi-ruta/detalle')
 @login_required
@@ -1977,42 +1942,7 @@ def api_escanear_bulto_carga(ruta_id):
     })
     
     
-'''@app.route('/ruta/<int:ruta_id>/confirmar-salida', methods=['POST'])
-@login_required
-@logistica_required
-def confirmar_salida_ruta(ruta_id):
-    ruta = db.get_or_404(HojaDeRuta, ruta_id)
-    
-    # Doble verificación de seguridad
-    session_key = f'carga_verificada_{ruta_id}'
-    bultos_verificados = session.get(session_key, [])
-    total_bultos_en_ruta = db.session.scalar(db.select(func.count(Bulto.id)).join(Bulto.orden).where(Orden.hoja_de_ruta_id == ruta.id))
 
-    if len(bultos_verificados) != total_bultos_en_ruta:
-        flash("Error de seguridad: No todos los bultos de la ruta han sido verificados.", "error")
-        return redirect(url_for('verificar_carga_ruta', ruta_id=ruta.id))
-    
-     # --- INICIO: Nueva lógica de estado condicional ---
-    if ruta.tipo_entrega == 'INTERNA':
-        ruta.estado = 'EN_RUTA'
-        mensaje_flash = f'¡La Ruta #{ruta.id} ha iniciado con éxito!'
-    else: # Es 'EXTERNA'
-        ruta.estado = 'FINALIZADA'
-        ruta.fecha_finalizacion = datetime.datetime.utcnow()
-        mensaje_flash = f'La entrega externa de la Ruta #{ruta.id} ha sido confirmada y finalizada.'
-    # --- FIN: Nueva lógica ---
-
-    # Actualizamos los estados
-    ruta.estado = 'EN_RUTA'
-    for orden in ruta.ordenes:
-        orden.estado = 'DESPACHADO'
-        orden.fecha_despacho = datetime.datetime.utcnow()
-    
-    db.session.commit()
-    session.pop(session_key, None) # Limpiamos la sesión
-
-    flash(f'¡La Ruta #{ruta.id} ha iniciado con éxito!', 'success')
-    return redirect(url_for('detalle_ruta', ruta_id=ruta.id)) ''' 
     
 @app.route('/ruta/<int:ruta_id>/confirmar-salida', methods=['POST'])
 @login_required
