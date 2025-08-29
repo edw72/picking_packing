@@ -1,0 +1,85 @@
+{% extends "layout.html" %}
+
+{% block title %}Gestionar Entregas Fallidas{% endblock %}
+
+{% block styles %}
+<style>
+    .incidencia-card {
+        background: white;
+        border: 1px solid #ddd;
+        border-left: 5px solid #d9534f; /* Borde rojo para destacar */
+        border-radius: 5px;
+        margin-bottom: 1.5rem;
+        padding: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .incidencia-card h2 { margin-top: 0; }
+    .incidencia-card .meta-info {
+        font-size: 0.9em;
+        color: #555;
+        margin-bottom: 1rem;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 1rem;
+    }
+    .nota-conductor {
+        background-color: #fffbe6;
+        border: 1px solid #ffe58f;
+        padding: 1rem;
+        border-radius: 5px;
+        margin-bottom: 1.5rem;
+    }
+    .nota-conductor blockquote { margin: 0; font-style: italic; }
+    .acciones-container { display: flex; gap: 1rem; }
+    .action-btn {
+        padding: 8px 15px; font-size: 14px; color: white; border: none; 
+        border-radius: 5px; cursor: pointer; text-decoration: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+    <h1>Gestionar Entregas Fallidas</h1>
+    <p>Aquí se listan las órdenes que no pudieron ser entregadas. Por favor, revise la razón y tome una acción.</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="flash flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    {% for orden in ordenes %}
+        <div class="incidencia-card">
+            <h2>Pedido #{{ orden.numero_pedido }}</h2>
+            <div class="meta-info">
+                Cliente: <strong>{{ orden.cliente_nombre }}</strong> |
+                Reportado por: <strong>{{ orden.hoja_de_ruta.conductor.username if orden.hoja_de_ruta and orden.hoja_de_ruta.conductor else 'N/A' }}</strong> |
+                Fecha de Despacho: {{ orden.fecha_despacho | localtime }}
+            </div>
+            
+            <h4>Razón de la Falla (Reporte del Conductor):</h4>
+            <div class="nota-conductor">
+                <blockquote>"{{ orden.nota_entrega }}"</blockquote>
+            </div>
+
+            <h4>Acciones Correctivas:</h4>
+            <div class="acciones-container">
+                <!-- Botón para Re-enrutar -->
+                <form action="{{ url_for('reenrutar_orden', orden_id=orden.id) }}" method="POST" onsubmit="return confirm('¿Devolver esta orden a la lista de despacho para re-enrutarla?');">
+                    <button type="submit" class="action-btn" style="background-color:#337ab7;">Devolver a Despacho</button>
+                </form>
+
+                <!-- Botón para Cancelar Definitivamente -->
+                <form action="{{ url_for('cancelar_entrega_fallida', orden_id=orden.id) }}" method="POST" onsubmit="return confirm('¿Cancelar esta orden permanentemente? Los artículos deberán ser devueltos al inventario.');">
+                    <button type="submit" class="action-btn" style="background-color:#777;">Cancelar Orden</button>
+                </form>
+            </div>
+        </div>
+    {% else %}
+        <div class="card" style="text-align: center; padding: 2rem;">
+            <p>¡Excelente! No hay entregas fallidas pendientes de revisión.</p>
+        </div>
+    {% endfor %}
+
+{% endblock %}

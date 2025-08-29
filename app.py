@@ -2088,6 +2088,61 @@ def reabrir_ruta(ruta_id):
     flash(f'¡La Ruta #{ruta.id} ha sido reabierta! Puede modificar las órdenes.', 'success')
     return redirect(url_for('detalle_ruta', ruta_id=ruta.id))
 
+@app.route('/entregas-fallidas')
+@login_required
+@logistica_required
+def gestionar_entregas_fallidas():
+    # Buscamos todas las órdenes que están en el estado de "cuarentena"
+    ordenes_fallidas = db.session.execute(
+        db.select(Orden)
+        .where(Orden.estado == 'INCIDENCIA_ENTREGA')
+        .options(joinedload(Orden.hoja_de_ruta).joinedload(HojaDeRuta.conductor)) # Cargamos info extra
+        .order_by(Orden.fecha_despacho.desc())
+    ).scalars().all()
+    
+    return render_template('gestionar_entregas_fallidas.html', ordenes=ordenes_fallidas)
+
+@app.route('/orden/<int:orden_id>/reenrutar', methods=['POST'])
+@login_required
+@logistica_required
+def reenrutar_orden(orden_id):
+    orden = db.get_or_404(Orden, orden_id)
+    
+    # Verificación de seguridad
+    if orden.estado != 'INCIDENCIA_ENTREGA':
+        flash('Esta orden no se puede re-enrutar desde su estado actual.', 'error')
+        return redirect(url_for('gestionar_entregas_fallidas'))
+
+    # "Liberamos" la orden de su hoja de ruta anterior y la devolvemos a la sala de espera
+    orden.hoja_de_ruta_id = None
+    orden.estado = 'LISTO_PARA_DESPACHO'
+    orden.nota_entrega = f"[Re-enrutada por {current_user.username}] " + orden.nota_entrega
+    
+    db.session.commit()
+    
+    flash(f'La orden #{orden.numero_pedido} ha sido devuelta a la lista de "Despacho" para ser re-enrutada.', 'success')
+    return redirect(url_for('gestionar_entregas_fallidas'))
+
+
+@app.route('/orden/<int:orden_id>/cancelar-entrega', methods=['POST'])
+@login_required
+@logistica_required
+def cancelar_entrega_fallida(orden_id):
+    orden = db.get_or_404(Orden, orden_id)
+
+    if orden.estado != 'INCIDENCIA_ENTREGA':
+        flash('Esta orden no se puede cancelar desde su estado actual.', 'error')
+        return redirect(url_for('gestionar_entregas_fallidas'))
+
+    # Cambiamos el estado a CANCELADA, lo que la saca del flujo activo
+    orden.estado = 'CANCELADA'
+    orden.nota_entrega = f"[Cancelada por {current_user.username} tras entrega fallida] " + orden.nota_entrega
+
+    db.session.commit()
+
+    flash(f'La orden #{orden.numero_pedido} ha sido CANCELADA. Los artículos deben ser devueltos al inventario.', 'warning')
+    return redirect(url_for('gestionar_entregas_fallidas'))
+
 # 5. PUNTO DE ENTRADA
 if __name__ == '__main__':
     
