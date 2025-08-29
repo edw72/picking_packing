@@ -61,7 +61,7 @@
         /* Estilos para los mensajes flash */
         .flash {
             padding: 1rem;
-            margin: 1rem 0;
+            margin: 0 0 1.5rem 0;
             border: 1px solid transparent;
             border-radius: .25rem;
             text-align: center;
@@ -152,6 +152,16 @@
     </header>
 
     <main>
+        <!-- === INICIO: BLOQUE DE MENSAJES FLASH RESTAURADO === -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash flash-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        <!-- === FIN: BLOQUE DE MENSAJES FLASH === -->
+
         <!-- Bloque donde se insertará el contenido de cada página hija -->
         {% block content %}{% endblock %}
     </main>

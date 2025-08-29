@@ -103,6 +103,7 @@ class Orden(db.Model):
     destino_id = db.Column(db.Integer, db.ForeignKey('destino.id'), nullable=True)
     destino = db.relationship('Destino', backref='ordenes')
     guia_encomienda = db.Column(db.String(100), nullable=True)
+    nota_entrega = db.Column(db.Text, nullable=True)
     def __repr__(self): return f'<Orden {self.numero_pedido}>'
 
 class User(UserMixin, db.Model):
@@ -1751,7 +1752,7 @@ def detalle_ruta_conductor():
 @login_required
 @conductor_required
 def actualizar_estado_orden(orden_id):
-    # Verificamos que la orden pertenece a la ruta activa del conductor
+    # Buscamos la orden asegurándonos de que pertenece a la ruta activa del conductor
     orden = db.session.execute(db.select(Orden).join(Orden.hoja_de_ruta).where(
         Orden.id == orden_id,
         HojaDeRuta.conductor_id == current_user.id,
@@ -1764,15 +1765,28 @@ def actualizar_estado_orden(orden_id):
 
     nuevo_estado = request.form.get('estado')
     
-    # Nuevos estados posibles para el conductor
-    estados_validos = ['ENTREGADO', 'ENTREGA_FALLIDA']
-    if nuevo_estado in estados_validos:
-        orden.estado = nuevo_estado
+    if nuevo_estado == 'ENTREGADO':
+        orden.estado = 'ENTREGADO'
+        orden.nota_entrega = None # Limpiamos cualquier nota anterior
         db.session.commit()
-        flash(f"Estado de la orden #{orden.numero_pedido} actualizado a {nuevo_estado}.", "success")
+        flash(f"Orden #{orden.numero_pedido} marcada como ENTREGADA.", "success")
+    
+    elif nuevo_estado == 'ENTREGA_FALLIDA':
+        nota = request.form.get('nota_fallida', '').strip()
+        
+        if not nota:
+            # Si la nota está vacía, mostramos error y NO hacemos commit
+            flash("Debe proporcionar una razón para la entrega fallida.", "error")
+        else:
+            # Actualizamos la orden con el nuevo estado y la nota
+            orden.estado = 'INCIDENCIA_ENTREGA' # El estado de 'cuarentena'
+            orden.nota_entrega = nota
+            db.session.commit()
+            flash(f"Incidencia de entrega para la orden #{orden.numero_pedido} registrada.", "warning")
     else:
         flash("Estado no válido.", "error")
 
+    # Siempre redirigimos al final
     return redirect(url_for('detalle_ruta_conductor'))
 
 @app.route('/mi-ruta/registrar-gasto', methods=['POST'])
@@ -1832,19 +1846,21 @@ def finalizar_ruta_conductor():
         flash("No tienes permiso para finalizar esta ruta.", "error")
         return redirect(url_for('dashboard_conductor'))
 
-    # --- INICIO: Nueva validación ---
-    # Contamos cuántas órdenes en esta ruta NO están en un estado final
+    # --- INICIO: CORRECCIÓN DE LA LÓGICA ---
+    # La lista de estados "finalizados" ahora incluye INCIDENCIA_ENTREGA
+    estados_finalizados = ['ENTREGADO', 'ENTREGA_FALLIDA', 'INCIDENCIA_ENTREGA']
+    
     ordenes_pendientes = db.session.scalar(
         db.select(func.count(Orden.id)).where(
             Orden.hoja_de_ruta_id == ruta.id,
-            Orden.estado.notin_(['ENTREGADO', 'ENTREGA_FALLIDA'])
+            Orden.estado.notin_(estados_finalizados) # Usamos la nueva lista
         )
     )
+    # --- FIN: CORRECCIÓN DE LA LÓGICA ---
 
     if ordenes_pendientes > 0:
         flash(f"No se puede finalizar la ruta. Aún tienes {ordenes_pendientes} entrega(s) pendiente(s) de actualizar.", "error")
         return redirect(url_for('detalle_ruta_conductor'))
-    # --- FIN: Nueva validación ---
 
     ruta.estado = 'FINALIZADA'
     ruta.fecha_finalizacion = datetime.datetime.utcnow()

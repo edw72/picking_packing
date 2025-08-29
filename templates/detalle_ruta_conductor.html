@@ -4,44 +4,23 @@
 
 {% block styles %}
 <style>
-    /* .card { background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem; }
+    .card { background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem; }
     h2, h3 { border-bottom: 1px solid #eee; padding-bottom: 0.5rem; margin-bottom: 1rem; }
     .orden-card { border: 1px solid #ddd; border-left: 5px solid #337ab7; border-radius: 5px; padding: 1rem; margin-bottom: 1rem; }
     .orden-header { display: flex; justify-content: space-between; align-items: flex-start; }
     .orden-header h4 { margin: 0; font-size: 1.1rem; }
-    .estado-ENTREGADO, .estado-ENTREGA_FALLIDA { background-color: #5cb85c; color: white; padding: 0.2em 0.5em; border-radius: 4px; font-size: 0.9em; }
-    .estado-ENTREGA_FALLIDA { background-color: #d9534f; }
+    .estado-ENTREGADO, .estado-ENTREGA_FALLIDA, .estado-INCIDENCIA_ENTREGA { background-color: #5cb85c; color: white; padding: 0.2em 0.5em; border-radius: 4px; font-size: 0.9em; }
+    .estado-ENTREGA_FALLIDA, .estado-INCIDENCIA_ENTREGA { background-color: #d9534f; }
     .actions-form, .guia-form { margin-top: 1rem; display: flex; gap: 10px; flex-wrap: wrap; align-items: center;}
-    .actions-form select, .actions-form button, .guia-form input, .guia-form button { padding: 8px 12px; border-radius: 5px; border: 1px solid #ccc; }
-    .form-grid { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
-    @media (min-width: 992px) { .form-grid { grid-template-columns: 1fr 2fr; } }
-    .submit-btn { background-color: #337ab7; color: white; border: none; cursor: pointer; }
-    .finalizar-ruta-btn { background-color: #28a745; color: white; border: none; padding: 15px; font-size: 1.2rem; width: 100%; cursor: pointer; border-radius: 5px; }
-    .finalizar-ruta-btn:disabled { background-color: #ccc; cursor: not-allowed; }
-    .bulto-info { font-size: 0.9em; color: #555; background: #f9f9f9; padding: 0.5rem; border-radius: 4px; margin-top: 0.5rem; }
-    .cliente-group { border: 1px solid #ccc; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; background-color: #fdfdfd; }
-    .cliente-group h3 { margin-top: 0; color: #337ab7; }
-    .view-options { margin-bottom: 1rem; background-color: #f0f0f0; padding: 0.8rem; border-radius: 5px; }
-    .orden-card.is-completed { border-left-color: #5cb85c; }
-    .orden-card.is-failed { border-left-color: #d9534f; } */
-
-     .card { background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem; }
-    h2 { border-bottom: 2px solid #eee; padding-bottom: 0.5rem; margin-bottom: 1rem; }
-    .orden-card { border: 1px solid #ddd; border-left: 5px solid #337ab7; border-radius: 5px; padding: 1rem; margin-bottom: 1rem; }
-    .orden-header { display: flex; justify-content: space-between; align-items: flex-start; }
-    .orden-header h3 { margin: 0; font-size: 1.2rem; }
-    .orden-header h4 { margin: 0; font-size: 1.1rem; }
-    .estado-ENTREGADO, .estado-ENTREGA_FALLIDA { background-color: #5cb85c; color: white; padding: 0.2em 0.5em; border-radius: 4px; font-size: 0.9em; }
-    .estado-ENTREGA_FALLIDA { background-color: #d9534f; }
-    .actions-form, .guia-form { margin-top: 1rem; display: flex; gap: 10px; flex-wrap: wrap; }
     .actions-form select, .actions-form button, .guia-form input, .guia-form button { padding: 8px 12px; border-radius: 5px; border: 1px solid #ccc; }
     .form-grid { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
     @media (min-width: 992px) { .form-grid { grid-template-columns: 1fr 2fr; } }
     .form-group { margin-bottom: 1rem; }
     .form-group label { display: block; font-weight: bold; margin-bottom: 0.5rem; }
     .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #ccc; }
-    .submit-btn { background-color: #337ab7; color: white; border: none; cursor: pointer; padding: 10px 15px; }
+    .submit-btn { background-color: #337ab7; color: white; border: none; cursor: pointer; padding: 10px 15px;}
     .finalizar-ruta-btn { background-color: #28a745; color: white; border: none; padding: 15px; font-size: 1.2rem; width: 100%; cursor: pointer; border-radius: 5px; }
+    .finalizar-ruta-btn:disabled { background-color: #ccc; cursor: not-allowed; }
     .bulto-info { font-size: 0.9em; color: #555; background: #f9f9f9; padding: 0.5rem; border-radius: 4px; margin-top: 0.5rem; }
     .cliente-group { border: 1px solid #ccc; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; background-color: #fdfdfd; }
     .cliente-group h3 { margin-top: 0; color: #337ab7; }
@@ -50,67 +29,39 @@
     .orden-card.is-failed { border-left-color: #d9534f; }
     .hide-completed .orden-card.is-completed,
     .hide-completed .orden-card.is-failed { display: none; }
-
-    /* --- Estilos para el Resumen Financiero --- */
     .resumen-financiero { text-align: center; }
     .resumen-financiero .valor { font-size: 1.8rem; font-weight: bold; margin-bottom: 0.5rem; }
     .resumen-financiero .etiqueta { font-size: 0.9rem; text-transform: uppercase; color: #777; }
     .resumen-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; }
     .balance-positivo { color: #28a745; }
     .balance-negativo { color: #d9534f; }
-    
-    /* La clase que controla la visibilidad */
-    .hide-completed .orden-card.is-completed,
-    .hide-completed .orden-card.is-failed {
-        display: none;
-    }
 </style>
 {% endblock %}
 
 {% block content %}
-<!-- ... (Toda la parte superior del HTML de la página no cambia) ... -->
 <a href="{{ url_for('dashboard_conductor') }}" class="back-link">← Volver a mi Dashboard</a>
+
 <div class="card resumen-financiero">
     <h2>Resumen Financiero de la Ruta</h2>
     <div class="resumen-grid">
-        <div>
-            <div class="valor">¢{{ '%.2f'|format(ruta.gastos_asignados) }}</div>
-            <div class="etiqueta">Dinero Recibido</div>
-        </div>
-        <div>
-            <div class="valor">¢{{ '%.2f'|format(total_recibido) }}</div>
-            <div class="etiqueta">Pagos de Clientes</div>
-        </div>
-        <div>
-            <div class="valor">- ¢{{ '%.2f'|format(total_gastado) }}</div>
-            <div class="etiqueta">Gastos Reportados</div>
-        </div>
-        <div>
-            <div class="valor {{ 'balance-positivo' if balance >= 0 else 'balance-negativo' }}">¢{{ '%.2f'|format(balance) }}</div>
-            <div class="etiqueta">Balance a Liquidar</div>
-        </div>
+        <div><div class="valor">¢{{ '%.2f'|format(ruta.gastos_asignados) }}</div><div class="etiqueta">Dinero Recibido</div></div>
+        <div><div class="valor">¢{{ '%.2f'|format(total_recibido) }}</div><div class="etiqueta">Pagos de Clientes</div></div>
+        <div><div class="valor">- ¢{{ '%.2f'|format(total_gastado) }}</div><div class="etiqueta">Gastos Reportados</div></div>
+        <div><div class="valor {{ 'balance-positivo' if balance >= 0 else 'balance-negativo' }}">¢{{ '%.2f'|format(balance) }}</div><div class="etiqueta">Balance a Liquidar</div></div>
     </div>
 </div>
 
 <div class="form-grid">
-    <!-- Columna Izquierda: Gastos y Pagos -->
     <div>
         <div class="card">
             <h2>Registrar Gasto</h2>
             <form action="{{ url_for('registrar_gasto_conductor') }}" method="POST">
                 <input type="hidden" name="ruta_id" value="{{ ruta.id }}">
-                <div class="form-group">
-                    <label for="monto_gastado">Monto (¢)</label>
-                    <input type="number" name="monto_gastado" step="0.01" required>
-                </div>
-                <div class="form-group">
-                    <label for="descripcion">Descripción</label>
-                    <input type="text" name="descripcion" placeholder="Ej: Combustible, Envío Encomienda" required>
-                </div>
+                <div class="form-group"><label for="monto_gastado">Monto (¢)</label><input type="number" name="monto_gastado" step="0.01" required></div>
+                <div class="form-group"><label for="descripcion">Descripción</label><input type="text" name="descripcion" placeholder="Ej: Combustible, Envío Encomienda" required></div>
                 <button type="submit" class="submit-btn">Registrar Gasto</button>
             </form>
         </div>
-
         <div class="card">
             <h2>Registrar Pago Recibido</h2>
             <form action="{{ url_for('registrar_pago_conductor') }}" method="POST">
@@ -119,91 +70,57 @@
                     <label for="orden_id">Para la Orden</label>
                     <select name="orden_id" required>
                         <option value="">-- Seleccione una orden --</option>
-                        <!-- CORRECCIÓN: Usamos el diccionario agrupado para obtener todas las órdenes -->
-                        {% for cliente, ordenes_del_cliente in clientes_agrupados.items() %}
-                            {% for orden in ordenes_del_cliente %}
-                                <option value="{{ orden.id }}">#{{ orden.numero_pedido }} - {{ orden.cliente_nombre }}</option>
-                            {% endfor %}
+                        {% set todas_las_ordenes = clientes_agrupados.values()|sum(start=[]) %}
+                        {% for orden in todas_las_ordenes|sort(attribute='numero_pedido') %}
+                            <option value="{{ orden.id }}">#{{ orden.numero_pedido }} - {{ orden.cliente_nombre }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                <div class="form-group">
-                    <label for="monto_recibido">Monto (¢)</label>
-                    <input type="number" name="monto_recibido" step="0.01" required>
-                </div>
-                <div class="form-group">
-                    <label for="nota">Nota (Opcional)</label>
-                    <textarea name="nota" rows="2"></textarea>
-                </div>
+                <div class="form-group"><label for="monto_recibido">Monto (¢)</label><input type="number" name="monto_recibido" step="0.01" required></div>
+                <div class="form-group"><label for="nota">Nota (Opcional)</label><textarea name="nota" rows="2"></textarea></div>
                 <button type="submit" class="submit-btn">Registrar Pago</button>
             </form>
         </div>
     </div>
-
-    
-    <!-- Columna Derecha: Lista de Órdenes (GRANDES CAMBIOS) -->
     <div class="card">
         <h2>Órdenes a Entregar ({{ total_ordenes }})</h2>
-        
-        <!-- Checkbox para Ocultar completadas -->
-        <div class="view-options">
-            <label>
-                <input type="checkbox" id="toggle-hide-completed">
-                Ocultar entregas completadas o fallidas
-            </label>
-        </div>
-
+        <div class="view-options"><label><input type="checkbox" id="toggle-hide-completed"> Ocultar entregas completadas o fallidas</label></div>
         <div id="lista-entregas">
-            <!-- Bucle Exterior: por cada CLIENTE -->
             {% for cliente, ordenes_del_cliente in clientes_agrupados.items() %}
             <div class="cliente-group">
                 <h3>{{ cliente }} ({{ ordenes_del_cliente|length }} orden/es)</h3>
-                
-                <!-- Bucle Interior: por cada orden de este CLIENTE -->
                 {% for orden in ordenes_del_cliente %}
-                <div class="orden-card {% if orden.estado == 'ENTREGADO' %}is-completed{% endif %} {% if orden.estado == 'ENTREGA_FALLIDA' %}is-failed{% endif %}">
+                <div class="orden-card {% if orden.estado == 'ENTREGADO' %}is-completed{% endif %} {% if orden.estado in ['ENTREGA_FALLIDA', 'INCIDENCIA_ENTREGA'] %}is-failed{% endif %}">
                     <div class="orden-header">
                         <div>
                             <h4>#{{ orden.numero_pedido }}</h4>
                             <p style="margin: 0.5rem 0;"><strong>Destino:</strong> {{ orden.destino.nombre if orden.destino else 'Sin Asignar' }}</p>
                         </div>
                         <div>
-                            {% if orden.estado in ['ENTREGADO', 'ENTREGA_FALLIDA'] %}
+                            {% if orden.estado in ['ENTREGADO', 'ENTREGA_FALLIDA', 'INCIDENCIA_ENTREGA'] %}
                                 <span class="estado-{{ orden.estado }}">{{ orden.estado.replace('_', ' ') }}</span>
                             {% else %}
                                 <span style="color: #777;">En Reparto</span>
                             {% endif %}
                         </div>
                     </div>
-                    
-            <div class="bulto-info">
-                <strong>Bultos ({{ orden.bultos|length }}):</strong> 
-                {% set bulto_types = {} %}
-                {% for bulto in orden.bultos %}
-                    {% if bulto.tipo in bulto_types %}
-                        {% set _ = bulto_types.update({bulto.tipo: bulto_types[bulto.tipo] + 1}) %}
-                    {% else %}
-                        {% set _ = bulto_types.update({bulto.tipo: 1}) %}
-                    {% endif %}
-                {% endfor %}
-                {% for tipo, count in bulto_types.items() %}
-                    {{ count }} {{ tipo }}{{ 'S' if count > 1 else '' }}{{ ', ' if not loop.last }}
-                {% endfor %}
-            </div>
-
+                    <div class="bulto-info">
+                        <strong>Bultos ({{ orden.bultos|length }}):</strong> 
+                        {% set bulto_types = {} %}{% for bulto in orden.bultos %}{% if bulto.tipo in bulto_types %}{% set _ = bulto_types.update({bulto.tipo: bulto_types[bulto.tipo] + 1}) %}{% else %}{% set _ = bulto_types.update({bulto.tipo: 1}) %}{% endif %}{% endfor %}
+                        {% for tipo, count in bulto_types.items() %}{{ count }} {{ tipo }}{{ 's' if count > 1 else '' }}{{ ', ' if not loop.last }}{% endfor %}
+                    </div>
                     <form action="{{ url_for('actualizar_estado_orden', orden_id=orden.id) }}" method="POST" class="actions-form">
                         <select name="estado">
                             <option value="ENTREGADO">Entregado con Éxito</option>
                             <option value="ENTREGA_FALLIDA">Entrega Fallida</option>
                         </select>
+                        <textarea name="nota_fallida" class="nota-fallida-input" placeholder="Razón de la falla (obligatorio)" style="display: none; width: 100%; margin-top: 5px;"></textarea>
                         <button type="submit">Actualizar Estado</button>
                     </form>
-
                     <form action="{{ url_for('guardar_guia_encomienda', orden_id=orden.id) }}" method="POST" class="guia-form">
                        <input type="text" name="guia_encomienda" placeholder="Nº de Guía de Encomienda" value="{{ orden.guia_encomienda or '' }}">
                        <button type="submit">Guardar Guía</button>
                     </form>
-                    <!-- === FIN: FORMULARIOS MOVIDOS === -->
                 </div>
                 {% endfor %}
             </div>
@@ -211,12 +128,9 @@
         </div>
     </div>
 </div>
-
 <div class="card">
-    <!-- CORRECCIÓN: Necesitamos pasar todas las órdenes para el conteo -->
     {% set todas_las_ordenes = clientes_agrupados.values()|sum(start=[]) %}
-    {% set ordenes_pendientes = todas_las_ordenes|rejectattr('estado', 'in', ['ENTREGADO', 'ENTREGA_FALLIDA'])|list|length %}
-
+    {% set ordenes_pendientes = todas_las_ordenes|rejectattr('estado', 'in', ['ENTREGADO', 'ENTREGA_FALLIDA', 'INCIDENCIA_ENTREGA'])|list|length %}
     <form action="{{ url_for('finalizar_ruta_conductor') }}" method="POST" onsubmit="return confirm('¿Está seguro de que desea finalizar esta ruta?');">
         <input type="hidden" name="ruta_id" value="{{ ruta.id }}">
         <button type="submit" class="finalizar-ruta-btn" {% if ordenes_pendientes > 0 %}disabled{% endif %}>
@@ -233,47 +147,47 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // --- INICIO: NUEVO SCRIPT MEJORADO CON LOCALSTORAGE ---
+    // Lógica para ocultar/mostrar completadas
     const toggleCheckbox = document.getElementById('toggle-hide-completed');
     const entregasContainer = document.getElementById('lista-entregas');
-    const storageKey = 'conductor_hide_completed'; // Una clave única para este ajuste
+    const storageKey = 'conductor_hide_completed';
 
-    // Función para aplicar el estado (ocultar o mostrar)
     function applyState(shouldHide) {
-        if (shouldHide) {
-            entregasContainer.classList.add('hide-completed');
-        } else {
-            entregasContainer.classList.remove('hide-completed');
+        if (entregasContainer) {
+            entregasContainer.classList.toggle('hide-completed', shouldHide);
         }
     }
-
-    // Al cargar la página
     function initializeView() {
-        // 1. Leemos la preferencia guardada en localStorage.
         const savedPreference = localStorage.getItem(storageKey);
-
-        // 2. Decidimos el estado inicial.
-        // Por defecto, queremos ocultar. Si no hay nada guardado (primera visita)
-        // o si lo guardado es 'true', entonces ocultamos.
         let shouldHide = savedPreference === null || savedPreference === 'true';
-        
-        // 3. Sincronizamos el checkbox y la vista.
-        toggleCheckbox.checked = shouldHide;
-        applyState(shouldHide);
+        if (toggleCheckbox) {
+            toggleCheckbox.checked = shouldHide;
+            applyState(shouldHide);
+        }
     }
-
-    // Listener para cuando el conductor cambia el checkbox
-    toggleCheckbox.addEventListener('change', function() {
-        const isChecked = this.checked;
-        // Aplicamos el cambio visual inmediatamente
-        applyState(isChecked);
-        // Guardamos la preferencia en localStorage para la próxima recarga
-        localStorage.setItem(storageKey, isChecked);
-    });
-
-    // Ejecutamos la inicialización al cargar la página
+    if (toggleCheckbox) {
+        toggleCheckbox.addEventListener('change', function() {
+            applyState(this.checked);
+            localStorage.setItem(storageKey, this.checked);
+        });
+    }
     initializeView();
-    // --- FIN: NUEVO SCRIPT ---
+
+    // Lógica para mostrar/ocultar campo de nota
+    const allStatusSelects = document.querySelectorAll('.actions-form select[name="estado"]');
+    allStatusSelects.forEach(selectElement => {
+        selectElement.addEventListener('change', function() {
+            const form = this.closest('form');
+            const notaTextarea = form.querySelector('.nota-fallida-input');
+            if (this.value === 'ENTREGA_FALLIDA') {
+                notaTextarea.style.display = 'block';
+                notaTextarea.required = true;
+            } else {
+                notaTextarea.style.display = 'none';
+                notaTextarea.required = false;
+            }
+        });
+    });
 });
 </script>
 {% endblock %}
