@@ -25,13 +25,18 @@
     .timeline-meta { font-size: 0.9rem; color: #666; margin-left: 0.5rem; }
     .timeline-meta .duracion { font-weight: bold; color: #333; }
 
-    .incidencia-log { background-color: #fffbe6; border: 1px solid #ffe58f; padding: 1rem; border-radius: 5px; margin-top: 0.5rem; }
+    .incidencia-log, .status-log {
+        background-color: #fffbe6; border: 1px solid #ffe58f;
+        padding: 1rem; border-radius: 5px; margin-top: 0.5rem;
+    }
+    .status-log-success { background-color: #f2fdf2; border-color: #c3e6cb; }
+    .status-log-failure { background-color: #f8d7da; border-color: #f5c6cb; }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="bitacora-container">
-    <a href="{{ url_for('reportes_y_busqueda') }}" class="back-link">← Volver a Reportes</a>
+    <a href="{{ url_for('reportes_y_busqueda') }}" class="back-link">← Volver a Búsqueda</a>
     
     <div class="card">
         <div class="card-header">
@@ -85,14 +90,44 @@
                     </span>
                 </li>
                 <!-- Despacho -->
-                <li class="timeline-item" style="padding-bottom:0;">
-                    <div class="timeline-title">Despacho</div>
+                <li class="timeline-item">
+                    <div class="timeline-title">Despacho de Bodega</div>
                      <span class="timeline-meta">
                         {{ orden.fecha_despacho | localtime if orden.fecha_despacho else 'Pendiente' }}
-                        {% if orden.transportista %} con <strong>{{ orden.transportista }}</strong> (Tracking: {{ orden.numero_seguimiento }}){% endif %}
-                        {% if duraciones.despacho %} | Duración: <span class="duracion">{{ duraciones.despacho }}</span>{% endif %}
+                        {% if duraciones.despacho %} | Duración hasta despacho: <span class="duracion">{{ duraciones.despacho }}</span>{% endif %}
                     </span>
                 </li>
+                
+                <!-- === INICIO: NUEVO PASO DE ENTREGA FINAL === -->
+                <li class="timeline-item" style="padding-bottom:0;">
+                    <div class="timeline-title">Entrega Final</div>
+                    <span class="timeline-meta">
+                        {% if orden.hoja_de_ruta and orden.hoja_de_ruta.fecha_finalizacion %}
+                            {{ orden.hoja_de_ruta.fecha_finalizacion | localtime }}
+                        {% elif orden.estado in ['DESPACHADO', 'ENTREGADO', 'ENTREGA_FALLIDA', 'INCIDENCIA_ENTREGA'] %}
+                            En proceso...
+                        {% else %}
+                            Pendiente
+                        {% endif %}
+                    </span>
+                    
+                    <!-- Mostramos el resultado de la entrega -->
+                    {% if orden.estado == 'ENTREGADO' %}
+                        <div class="status-log status-log-success">
+                            <strong>Resultado:</strong> La orden fue entregada con éxito.
+                        </div>
+                    {% elif orden.estado in ['ENTREGA_FALLIDA', 'INCIDENCIA_ENTREGA'] %}
+                        <div class="status-log status-log-failure">
+                            <strong>Resultado:</strong> Hubo una incidencia en la entrega. <br>
+                            <strong>Nota del conductor:</strong> <em>"{{ orden.nota_entrega }}"</em>
+                        </div>
+                    {% elif orden.estado == 'CANCELADA' %}
+                         <div class="status-log status-log-failure">
+                            <strong>Resultado:</strong> La orden fue cancelada.
+                        </div>
+                    {% endif %}
+                </li>
+                <!-- === FIN: NUEVO PASO DE ENTREGA FINAL === -->
             </ul>
         </div>
     </div>

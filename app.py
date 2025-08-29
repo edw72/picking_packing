@@ -19,6 +19,7 @@ from flask import send_file
 from flask_migrate import Migrate # Importar Migrate
 from flask_weasyprint import HTML, render_pdf
 from flask import abort # Asegúrate de importar abort al principio del archivo
+from sqlalchemy.orm import joinedload, subqueryload
 
 
 # 2. CONFIGURACIÓN DE LA APP
@@ -393,16 +394,18 @@ def detalle_orden(orden_id):
 
 @app.route('/orden/<int:orden_id>/bitacora')
 @login_required
-@admin_required # Solo los admins pueden ver esta vista tan detallada
+@logistica_required # Cambiado a logistica_required para que operarios también puedan verla
 def bitacora_orden(orden_id):
-    from sqlalchemy.orm import joinedload, subqueryload
-
-    # Cargamos la orden y todas sus relaciones de forma eficiente para evitar múltiples consultas
-    orden = Orden.query.options(
-        joinedload(Orden.lote).joinedload(LotePicking.operario), # Carga el lote y el operario de picking
-        joinedload(Orden.packer), # Carga el operario de packing
-        subqueryload(Orden.items).joinedload(ItemOrden.historial_incidencias) # Carga los items y su historial de incidencias
-    ).get(orden_id)
+    # --- INICIO: Consulta mejorada para incluir datos de la ruta ---
+    # Añadimos la carga de la hoja de ruta y su conductor
+    options_list = [
+        joinedload(Orden.lote).joinedload(LotePicking.operario),
+        joinedload(Orden.packer),
+        subqueryload(Orden.items).joinedload(ItemOrden.historial_incidencias),
+        joinedload(Orden.hoja_de_ruta).joinedload(HojaDeRuta.conductor) # <-- NUEVA LÍNEA
+    ]
+    orden = db.session.get(Orden, orden_id, options=options_list)
+    # --- FIN: Consulta mejorada ---
 
     if not orden:
         flash('Orden no encontrada.', 'error')
