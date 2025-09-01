@@ -20,6 +20,7 @@ from flask_migrate import Migrate # Importar Migrate
 from flask_weasyprint import HTML, render_pdf
 from flask import abort # Asegúrate de importar abort al principio del archivo
 from sqlalchemy.orm import joinedload, subqueryload
+from sqlalchemy.exc import IntegrityError
 
 
 # 2. CONFIGURACIÓN DE LA APP
@@ -866,18 +867,22 @@ def detalle_packing(orden_id):
 
 @app.route('/packing/<int:orden_id>/finalizar', methods=['POST'])
 @login_required
+@logistica_required # Asegúrate de usar el decorador correcto
 def finalizar_packing(orden_id):
     orden = db.get_or_404(Orden, orden_id)
+    
+    ### --- INICIO: CAPA 1 - Barrera Lógica --- ###
+    # Si la orden ya fue procesada, no hacemos nada más.
     if orden.estado != 'EMPACADO':
-        flash('Esta orden no está en el estado correcto para finalizar el packing.', 'error')
+        flash(f'La orden #{orden.numero_pedido} ya ha sido procesada y no se puede finalizar de nuevo.', 'warning')
         return redirect(url_for('dashboard_packing'))
+    ### --- FIN: CAPA 1 --- ###
+
     try:
         num_cajas = int(request.form.get('cantidad_cajas', 0))
         num_bolsas = int(request.form.get('cantidad_bolsas', 0))
         num_paquetes = int(request.form.get('cantidad_paquetes', 0))
-        # --- INICIO: Nueva lógica para obtener lotes ---
         lote_cantidades = request.form.getlist('lote_cantidades', type=int)
-        # --- FIN: Nueva lógica ---
     except (ValueError, TypeError):
         flash('Las cantidades deben ser números válidos.', 'error')
         return redirect(url_for('detalle_packing', orden_id=orden_id))
@@ -886,39 +891,43 @@ def finalizar_packing(orden_id):
         flash('Debe especificar al menos un bulto (caja, bolsa, paquete o lote).', 'error')
         return redirect(url_for('detalle_packing', orden_id=orden_id))
 
-    bulto_counter = 1
-    # Bucle para Cajas
-    for _ in range(num_cajas):
-        db.session.add(Bulto(orden_id=orden.id, tipo='CAJA', identificador_unico=f'{orden.numero_pedido}-{bulto_counter}'))
-        bulto_counter += 1
-    # Bucle para Bolsas
-    for _ in range(num_bolsas):
-        db.session.add(Bulto(orden_id=orden.id, tipo='BOLSA', identificador_unico=f'{orden.numero_pedido}-{bulto_counter}'))
-        bulto_counter += 1
-    # Bucle para Paquetes
-    for _ in range(num_paquetes):
-        db.session.add(Bulto(orden_id=orden.id, tipo='PAQUETE', identificador_unico=f'{orden.numero_pedido}-{bulto_counter}'))
-        bulto_counter += 1
-        
-    # --- INICIO: Nuevo bucle para LOTES ---
-    for cantidad in lote_cantidades:
-        if cantidad > 0:
-            db.session.add(Bulto(
-                orden_id=orden.id, 
-                tipo='LOTE', 
-                identificador_unico=f'{orden.numero_pedido}-{bulto_counter}',
-                cantidad_unidades=cantidad
-            ))
+    ### --- INICIO: CAPA 2 - Red de Seguridad (try...except) --- ###
+    try:
+        bulto_counter = 1
+        # Bucle para Cajas
+        for _ in range(num_cajas):
+            db.session.add(Bulto(orden_id=orden.id, tipo='CAJA', identificador_unico=f'{orden.numero_pedido}-{bulto_counter}'))
             bulto_counter += 1
-    # --- FIN: Nuevo bucle ---
+        # Bucle para Bolsas
+        for _ in range(num_bolsas):
+            db.session.add(Bulto(orden_id=orden.id, tipo='BOLSA', identificador_unico=f'{orden.numero_pedido}-{bulto_counter}'))
+            bulto_counter += 1
+        # Bucle para Paquetes
+        for _ in range(num_paquetes):
+            db.session.add(Bulto(orden_id=orden.id, tipo='PAQUETE', identificador_unico=f'{orden.numero_pedido}-{bulto_counter}'))
+            bulto_counter += 1
+        # Bucle para LOTES
+        for cantidad in lote_cantidades:
+            if cantidad > 0:
+                db.session.add(Bulto(orden_id=orden.id, tipo='LOTE', identificador_unico=f'{orden.numero_pedido}-{bulto_counter}', cantidad_unidades=cantidad))
+                bulto_counter += 1
 
-    orden.estado = 'LISTO_PARA_DESPACHO'
-    orden.fecha_fin_packing = datetime.datetime.utcnow()
-    orden.packer_id = current_user.id
-    db.session.commit()
+        orden.estado = 'LISTO_PARA_DESPACHO'
+        orden.fecha_fin_packing = datetime.datetime.utcnow()
+        orden.packer_id = current_user.id
+        
+        db.session.commit()
+        
+        flash(f'Orden #{orden.numero_pedido} finalizada. Se generaron {bulto_counter - 1} etiquetas.', 'success')
+        return redirect(url_for('imprimir_etiquetas', orden_id=orden.id))
+
+    except IntegrityError:
+        # Si ocurre un error de duplicado, deshacemos todo y mostramos un mensaje
+        db.session.rollback()
+        flash('Error: Hubo un problema al crear los bultos. Es posible que esta orden ya haya sido procesada. Por favor, inténtelo de nuevo.', 'error')
+        return redirect(url_for('detalle_packing', orden_id=orden_id))
+    ### --- FIN: CAPA 2 --- ###
     
-    flash(f'Orden #{orden.numero_pedido} finalizada. Se generaron {bulto_counter - 1} etiquetas.', 'success')
-    return redirect(url_for('imprimir_etiquetas', orden_id=orden.id))
 
 # === INICIO: NUEVAS RUTAS PARA IMPRESIÓN Y QR (PASO 4) ===
 @app.route('/orden/<int:orden_id>/imprimir-etiquetas')
