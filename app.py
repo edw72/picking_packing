@@ -2155,6 +2155,37 @@ def cancelar_entrega_fallida(orden_id):
     flash(f'La orden #{orden.numero_pedido} ha sido CANCELADA. Los artículos deben ser devueltos al inventario.', 'warning')
     return redirect(url_for('gestionar_entregas_fallidas'))
 
+@app.route('/admin/desbloquear-orden/<int:orden_id>', methods=['POST'])
+@login_required
+@admin_required # ¡MUY IMPORTANTE! Solo los admins pueden hacer esto.
+def desbloquear_orden_packing(orden_id):
+    orden = db.get_or_404(Orden, orden_id)
+
+    # --- Verificaciones de Seguridad ---
+    # 1. ¿Está la orden realmente atascada en 'EMPACADO'?
+    if orden.estado != 'EMPACADO':
+        flash(f'Error: La orden #{orden.numero_pedido} no está en estado "Empacado".', 'error')
+        return redirect(url_for('dashboard_packing'))
+
+    # 2. ¿Ya tiene bultos creados? (Esta es la prueba de que ya fue procesada)
+    if not orden.bultos:
+        flash(f'Error: La orden #{orden.numero_pedido} no tiene bultos creados. No se puede desbloquear.', 'error')
+        return redirect(url_for('dashboard_packing'))
+
+    # --- Si pasa las verificaciones, procedemos a desbloquear ---
+    orden.estado = 'LISTO_PARA_DESPACHO'
+    
+    # También es una buena práctica registrar quién y cuándo finalizó el packing si no se hizo
+    if not orden.packer_id:
+        orden.packer_id = current_user.id
+    if not orden.fecha_fin_packing:
+        orden.fecha_fin_packing = datetime.datetime.utcnow()
+
+    db.session.commit()
+
+    flash(f'¡Éxito! La orden #{orden.numero_pedido} ha sido desbloqueada y movida a Despacho.', 'success')
+    return redirect(url_for('dashboard_packing'))
+
 # 5. PUNTO DE ENTRADA
 if __name__ == '__main__':
     

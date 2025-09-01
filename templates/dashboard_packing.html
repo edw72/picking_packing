@@ -55,6 +55,16 @@
             background-color: #f8d7da;
             border-color: #f5c6cb;
         }
+
+         .unlock-btn {
+            background-color: #777; /* Un color diferente para indicar una acción especial */
+            font-size: 12px;
+            padding: 5px 10px;
+            margin-left: 5px;
+        }
+        .unlock-btn:hover {
+            background-color: #5a5a5a;
+        }
     </style>
 {% endblock %}
 
@@ -105,6 +115,14 @@
                     <!-- Se ha eliminado el parámetro reset='true' de este enlace -->
                     <a href="{{ url_for('detalle_packing', orden_id=orden.id) }}" class="action-link">Verificar Orden</a>
                     <!-- === FIN DEL CAMBIO CLAVE === -->
+                     <!-- === INICIO: Botón de Desbloqueo (Solo para Admins) === -->
+                    {% if current_user.role == 'admin' %}
+                        <form action="{{ url_for('desbloquear_orden_packing', orden_id=orden.id) }}" method="POST" style="display: inline;" 
+                              onsubmit="return confirm('¿Está seguro de que desea forzar el avance de esta orden a Despacho? Úselo solo para órdenes atascadas.');">
+                            <button type="submit" class="action-link unlock-btn">Desbloquear</button>
+                        </form>
+                    {% endif %}
+                    <!-- === FIN: Botón de Desbloqueo === -->
                 </td>
             </tr>
             {% else %}
