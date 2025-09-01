@@ -76,7 +76,7 @@
     <h1>Picking para Lote #{{ lote.id }}</h1>
 
     <form id="scan-form" class="scan-form">
-        <input type="text" id="scan-input" class="scan-input" placeholder="Escanear o escribir código de artículo..." autofocus onfocus="this.select()">
+        <input type="text" id="scan-input" class="scan-input" placeholder="Escanear o escribir código de artículo..." autofocus onfocus="this.select()" autocomplete="off">
         <button type="submit" class="scan-btn">Escanear</button>
     </form>
     <div id="scan-feedback" class="scan-feedback"></div>
@@ -343,6 +343,26 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     inicializarVista();
+
+    // --- INICIO: NUEVO BLOQUE ANTI-PEGADO Y ANTI-ARRASTRE ---
+    const scanInputData = document.getElementById('scan-input'); // Cambia esto en cada archivo
+
+    if (scanInputData) {
+        // Función que se ejecutará para ambos eventos
+        const blockAction = function(event) {
+            // Previene la acción por defecto (pegar o soltar)
+            event.preventDefault();
+            // Muestra una alerta unificada
+            alert("Esta acción está deshabilitada para garantizar la verificación por escáner.");
+        };
+
+        // Escuchamos el evento de pegar
+        scanInputData.addEventListener('paste', blockAction);
+
+        // Escuchamos el evento de soltar
+        scanInputData.addEventListener('drop', blockAction);
+    }
+    // --- FIN: NUEVO BLOQUE ---```
 });
 </script>
 {% endblock %}

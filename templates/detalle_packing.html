@@ -49,7 +49,7 @@
     
     <!-- === INICIO: BLOQUE RESTAURADO === -->
     <form id="scan-form-packing" class="scan-form">
-        <input type="text" id="scan-input-packing" class="scan-input" placeholder="Escanear artículo para verificar..." autofocus>
+        <input type="text" id="scan-input-packing" class="scan-input" placeholder="Escanear artículo para verificar..." autofocus autocomplete="off">
         <button type="submit" class="scan-btn">Escanear</button>
     </form>
     <div id="scan-feedback-packing" class="scan-feedback"></div>
@@ -321,6 +321,26 @@ document.addEventListener('DOMContentLoaded', function() {
             lotesContainer.appendChild(newRow);
         });
     }
+
+    // --- INICIO: NUEVO BLOQUE ANTI-PEGADO Y ANTI-ARRASTRE ---
+    const scanInputData = document.getElementById('scan-input-packing'); // Cambia esto en cada archivo
+
+    if (scanInputData) {
+        // Función que se ejecutará para ambos eventos
+        const blockAction = function(event) {
+            // Previene la acción por defecto (pegar o soltar)
+            event.preventDefault();
+            // Muestra una alerta unificada
+            alert("Esta acción está deshabilitada para garantizar la verificación por escáner.");
+        };
+
+        // Escuchamos el evento de pegar
+        scanInputData.addEventListener('paste', blockAction);
+
+        // Escuchamos el evento de soltar
+        scanInputData.addEventListener('drop', blockAction);
+    }
+    // --- FIN: NUEVO BLOQUE ---```
 });
 </script>
 {% endblock %}
