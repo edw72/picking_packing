@@ -99,6 +99,22 @@
                 padding: 2em;
             }
         }
+
+        .nav-link-with-badge {
+            position: relative;
+            text-decoration: none;
+        }
+        .notification-badge {
+            position: absolute;
+            top: -8px;
+            right: -12px;
+            background-color: red;
+            color: white;
+            border-radius: 50%;
+            padding: 2px 6px;
+            font-size: 0.7rem;
+            display: none; /* Oculto por defecto */
+        }
     </style>
     <!-- Bloque para estilos específicos de cada página -->
     {% block styles %}{% endblock %}
@@ -120,26 +136,36 @@
                         <a href="{{ url_for('reportes_y_busqueda') }}">Búsqueda</a>
                         <a href="{{ url_for('gestionar_rutas') }}">Hojas de Ruta</a>
                         <a href="{{ url_for('reporte_operarios') }}">Rendimiento</a>
-                        <a href="{{ url_for('gestionar_incidencias') }}">Incidencias Activas</a>
-                        <a href="{{ url_for('gestionar_entregas_fallidas') }}">Entregas Fallidas</a>
+                        
+                        <!-- === INICIO: CAMBIO EN ENLACES DE INCIDENCIAS === -->
+                        <a href="{{ url_for('gestionar_incidencias') }}" class="nav-link-with-badge">
+                            Incidencias Picking
+                            <span id="picking-incidencias-badge" class="notification-badge">0</span>
+                        </a>
+                        <a href="{{ url_for('gestionar_entregas_fallidas') }}" class="nav-link-with-badge">
+                            Entregas Fallidas
+                            <span id="entrega-incidencias-badge" class="notification-badge">0</span>
+                        </a>
+                        <!-- === FIN: CAMBIO EN ENLACES DE INCIDENCIAS === -->
+
                         <a href="{{ url_for('historial_incidencias') }}">Historial Incidencias</a>
                         <a href="{{ url_for('gestionar_usuarios') }}">Usuarios</a>
-                        <!-- ENLACE A INCIDENCIAS CON EL ICONO DE NOTIFICACIÓN -->
-                        <a href="{{ url_for('gestionar_incidencias') }}" id="nav-incidencias-link" style="position: relative; text-decoration:none;" title="Ver incidencias pendientes">
-                            <span style="font-size: 1.5rem;">🔔</span>
-                            <span id="incidencias-badge" style="position: absolute; top: -5px; right: -10px; background-color: red; color: white; border-radius: 50%; padding: 2px 6px; font-size: 0.7rem; display: none;">0</span>
-                        </a>
                     </div>
                 {% endif %}
 
                         <!-- === INICIO: NUEVO BLOQUE PARA OPERARIOS Y OTROS ROLES === -->
                 {% if current_user.role == 'operario' %}
-                    <div class="nav-admin-links"> <!-- Reutilizamos el estilo -->
+                    <div class="nav-admin-links">
                         <a href="{{ url_for('dashboard') }}">Picking</a>
                         <a href="{{ url_for('dashboard_packing') }}">Packing</a>
                         <a href="{{ url_for('dashboard_despacho') }}">Despacho</a>
                         <a href="{{ url_for('gestionar_rutas') }}">Hojas de Ruta</a>
-                        <a href="{{ url_for('gestionar_entregas_fallidas') }}">Entregas Fallidas</a>
+                        <!-- === INICIO: AÑADIR ENLACE PARA OPERARIO === -->
+                        <a href="{{ url_for('gestionar_entregas_fallidas') }}" class="nav-link-with-badge">
+                            Entregas Fallidas
+                            <span id="entrega-incidencias-badge" class="notification-badge">0</span>
+                        </a>
+                        <!-- === FIN: AÑADIR ENLACE PARA OPERARIO === -->
                     </div>
                 {% endif %}
                 <!-- === FIN: NUEVO BLOQUE === -->
@@ -168,21 +194,19 @@
         {% block content %}{% endblock %}
     </main>
 
-    <!-- ========= SCRIPT DE NOTIFICACIONES (SOLO PARA ADMIN) ========= -->
-    {% if current_user.is_authenticated and current_user.role == 'admin' %}
-        <!-- Div invisible para pasar datos de Flask a JavaScript -->
+     <!-- === INICIO: CAMBIO EN EL DIV DE DATOS PARA JS === -->
+    {% if current_user.is_authenticated and current_user.role in ['admin', 'operario'] %}
         <div id="audio-container" 
              data-notification-sound="{{ url_for('static', filename='sounds/notification.mp3') }}"
              data-silent-sound="{{ url_for('static', filename='sounds/silent.mp3') }}"
-             data-check-url="{{ url_for('api_incidencias_pendientes_count') }}"
+             data-check-url-picking="{{ url_for('api_incidencias_pendientes_count') }}"
+             data-check-url-entregas="{{ url_for('api_entregas_fallidas_pendientes_count') }}"
              style="display: none;">
         </div>
-
-        <!-- Enlazamos nuestro archivo JavaScript externo -->
         <script src="{{ url_for('static', filename='js/notifications.js') }}"></script>
     {% endif %}
+    <!-- === FIN: CAMBIO EN EL DIV DE DATOS === -->
 
-    <!-- Bloque para scripts específicos de cada página (como Chart.js) -->
     {% block scripts %}{% endblock %}
 </body>
 </html>

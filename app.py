@@ -2155,6 +2155,17 @@ def cancelar_entrega_fallida(orden_id):
     flash(f'La orden #{orden.numero_pedido} ha sido CANCELADA. Los artículos deben ser devueltos al inventario.', 'warning')
     return redirect(url_for('gestionar_entregas_fallidas'))
 
+@app.route('/api/entregas-fallidas/pendientes-count')
+@login_required
+@logistica_required # Lo abrimos a operarios también, ya que ellos gestionan esta vista
+def api_entregas_fallidas_pendientes_count():
+    # Contamos las órdenes que están en el estado de 'cuarentena'
+    count = db.session.scalar(
+        db.select(func.count(Orden.id.distinct()))
+        .where(Orden.estado == 'INCIDENCIA_ENTREGA')
+    )
+    return jsonify({'pendientes': count or 0})
+
 @app.route('/admin/desbloquear-orden/<int:orden_id>', methods=['POST'])
 @login_required
 @admin_required # ¡MUY IMPORTANTE! Solo los admins pueden hacer esto.
