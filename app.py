@@ -2185,6 +2185,88 @@ def desbloquear_orden_packing(orden_id):
 
     flash(f'¡Éxito! La orden #{orden.numero_pedido} ha sido desbloqueada y movida a Despacho.', 'success')
     return redirect(url_for('dashboard_packing'))
+@app.route('/transaccion/<int:transaccion_id>/borrar', methods=['POST'])
+@login_required
+@admin_required # Usamos este permiso para que tanto admin como operario puedan corregir
+def borrar_transaccion(transaccion_id):
+    transaccion = db.get_or_404(Transaccion, transaccion_id)
+    ruta = transaccion.hoja_de_ruta
+    
+    # Seguridad: no se pueden modificar rutas ya cerradas
+    if ruta.estado in ['FINALIZADA', 'ARCHIVADA']:
+        flash('No se pueden borrar movimientos de una ruta que ya ha sido finalizada.', 'error')
+        return redirect(url_for('detalle_ruta', ruta_id=ruta.id))
+
+    db.session.delete(transaccion)
+    db.session.commit()
+
+    flash('El registro de pago ha sido eliminado.', 'success')
+    return redirect(url_for('detalle_ruta', ruta_id=ruta.id))
+
+
+@app.route('/gasto/<int:gasto_id>/borrar', methods=['POST'])
+@login_required
+@admin_required
+def borrar_gasto(gasto_id):
+    gasto = db.get_or_404(GastoViaje, gasto_id)
+    ruta = gasto.hoja_de_ruta
+
+    if ruta.estado in ['FINALIZADA', 'ARCHIVADA']:
+        flash('No se pueden borrar movimientos de una ruta que ya ha sido finalizada.', 'error')
+        return redirect(url_for('detalle_ruta', ruta_id=ruta.id))
+
+    db.session.delete(gasto)
+    db.session.commit()
+
+    flash('El registro de gasto ha sido eliminado.', 'success')
+    return redirect(url_for('detalle_ruta', ruta_id=ruta.id))
+
+@app.route('/transaccion/<int:transaccion_id>/editar', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def editar_transaccion(transaccion_id):
+    transaccion = db.get_or_404(Transaccion, transaccion_id)
+    ruta = transaccion.hoja_de_ruta
+
+    if ruta.estado in ['FINALIZADA', 'ARCHIVADA']:
+        flash('No se pueden editar movimientos de una ruta que ya ha sido finalizada.', 'error')
+        return redirect(url_for('detalle_ruta', ruta_id=ruta.id))
+
+    if request.method == 'POST':
+        try:
+            transaccion.monto_recibido = float(request.form.get('monto_recibido'))
+            transaccion.nota = request.form.get('nota')
+            db.session.commit()
+            flash('El registro de pago ha sido actualizado.', 'success')
+            return redirect(url_for('detalle_ruta', ruta_id=ruta.id))
+        except (ValueError, TypeError):
+            flash('El monto ingresado no es un número válido.', 'error')
+    
+    return render_template('editar_movimiento.html', movimiento=transaccion, tipo='Pago')
+
+
+@app.route('/gasto/<int:gasto_id>/editar', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def editar_gasto(gasto_id):
+    gasto = db.get_or_404(GastoViaje, gasto_id)
+    ruta = gasto.hoja_de_ruta
+
+    if ruta.estado in ['FINALIZADA', 'ARCHIVADA']:
+        flash('No se pueden editar movimientos de una ruta que ya ha sido finalizada.', 'error')
+        return redirect(url_for('detalle_ruta', ruta_id=ruta.id))
+
+    if request.method == 'POST':
+        try:
+            gasto.monto_gastado = float(request.form.get('monto_gastado'))
+            gasto.descripcion = request.form.get('descripcion')
+            db.session.commit()
+            flash('El registro de gasto ha sido actualizado.', 'success')
+            return redirect(url_for('detalle_ruta', ruta_id=ruta.id))
+        except (ValueError, TypeError):
+            flash('El monto ingresado no es un número válido.', 'error')
+            
+    return render_template('editar_movimiento.html', movimiento=gasto, tipo='Gasto')
 
 # 5. PUNTO DE ENTRADA
 if __name__ == '__main__':

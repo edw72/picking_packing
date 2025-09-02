@@ -1,0 +1,46 @@
+{% extends "layout.html" %}
+
+{% block title %}Editar {{ tipo }}{% endblock %}
+
+{% block styles %}
+<style>
+    .form-container { max-width: 600px; margin: 2em auto; background: white; padding: 2em; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    .form-group label { display: block; font-weight: bold; margin-bottom: 0.5rem; }
+    .form-group input, .form-group textarea { width: 100%; padding: 10px; font-size: 1.1rem; border-radius: 5px; border: 1px solid #ccc; }
+    .submit-btn { width: 100%; padding: 12px; font-size: 1.1rem; background-color: #337ab7; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 1rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <a href="{{ url_for('detalle_ruta', ruta_id=movimiento.hoja_de_ruta.id) }}" class="back-link">← Volver al Detalle de la Ruta</a>
+    
+    <h1>Editar Registro de {{ tipo }}</h1>
+    
+    {% if tipo == 'Pago' %}
+    <form method="POST">
+        <div class="form-group">
+            <label for="monto_recibido">Monto Recibido (¢)</label>
+            <input type="number" name="monto_recibido" value="{{ movimiento.monto_recibido }}" step="0.01" required>
+        </div>
+        <div class="form-group">
+            <label for="nota">Nota</label>
+            <textarea name="nota" rows="3">{{ movimiento.nota or '' }}</textarea>
+        </div>
+        <button type="submit" class="submit-btn">Guardar Cambios</button>
+    </form>
+    {% elif tipo == 'Gasto' %}
+    <form method="POST">
+        <div class="form-group">
+            <label for="monto_gastado">Monto Gastado (¢)</label>
+            <input type="number" name="monto_gastado" value="{{ movimiento.monto_gastado }}" step="0.01" required>
+        </div>
+        <div class="form-group">
+            <label for="descripcion">Descripción</label>
+            <input type="text" name="descripcion" value="{{ movimiento.descripcion }}" required>
+        </div>
+        <button type="submit" class="submit-btn">Guardar Cambios</button>
+    </form>
+    {% endif %}
+</div>
+{% endblock %}

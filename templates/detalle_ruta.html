@@ -244,34 +244,64 @@
         <h4>Pagos Recibidos</h4>
         {% if transacciones %}
             <table>
+                 <!-- === INICIO: CAMBIOS EN LA TABLA DE PAGOS === -->
+                <thead><tr><th>Monto y Orden</th><th>Nota</th><th>Acción</th></tr></thead>
                 <tbody>
                 {% for t in transacciones %}
                     <tr>
                         <td><strong>¢{{ '%.2f'|format(t.monto_recibido) }}</strong> de Orden #{{ t.orden.numero_pedido }}</td>
-                        <td><small>{{ t.nota }}</small></td>
+                        <td><small>{{ t.nota or '' }}</small></td>
+                        <td>
+                             <!-- === INICIO: Condición de Rol === -->
+                            {% if current_user.role == 'admin' and ruta.estado not in ['FINALIZADA', 'ARCHIVADA'] %}
+                                <a href="{{ url_for('editar_transaccion', transaccion_id=t.id) }}" class="action-btn" style="background-color: #f0ad4e; font-size: 12px; padding: 4px 8px;">Editar</a>
+                                <form action="{{ url_for('borrar_transaccion', transaccion_id=t.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('¿Eliminar este registro de pago?');">
+                                    <button type="submit" class="remove-btn" style="font-size: 12px; padding: 4px 8px;">Borrar</button>
+                                </form>
+                            {% else %}
+                                -
+                            {% endif %}
+                            <!-- === FIN: Condición de Rol === -->
+                        </td>
                     </tr>
                 {% endfor %}
                 </tbody>
-            </table>
-        {% else %}
-            <p>No se han registrado pagos.</p>
-        {% endif %}
-        
-        <h4 style="margin-top: 2rem;">Gastos del Viaje</h4>
-        {% if gastos %}
-            <table>
-                <tbody>
-                {% for g in gastos %}
-                    <tr>
-                        <td><strong>- ¢{{ '%.2f'|format(g.monto_gastado) }}</strong></td>
-                        <td>{{ g.descripcion }}</td>
-                    </tr>
-                {% endfor %}
-                </tbody>
+                <!-- === FIN: CAMBIOS EN LA TABLA DE PAGOS === -->
             </table>
         {% else %}
             <p>No se han registrado gastos.</p>
         {% endif %}
+
+        <h4 style="margin-top: 2rem;">Gastos del Viaje</h4>
+    {% if gastos %}
+        <table>
+            <!-- === INICIO: CAMBIOS EN LA TABLA DE GASTOS === -->
+            <thead><tr><th>Monto</th><th>Descripción</th><th>Acción</th></tr></thead>
+            <tbody>
+            {% for g in gastos %}
+                <tr>
+                    <td><strong>- ¢{{ '%.2f'|format(g.monto_gastado) }}</strong></td>
+                    <td>{{ g.descripcion }}</td>
+                    <td>
+                        <!-- === INICIO: Condición de Rol === -->
+                    {% if current_user.role == 'admin' and ruta.estado not in ['FINALIZADA', 'ARCHIVADA'] %}
+                        <a href="{{ url_for('editar_gasto', gasto_id=g.id) }}" class="action-btn" style="background-color: #f0ad4e; font-size: 12px; padding: 4px 8px;">Editar</a>
+                         <form action="{{ url_for('borrar_gasto', gasto_id=g.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('¿Eliminar este registro de gasto?');">
+                            <button type="submit" class="remove-btn" style="font-size: 12px; padding: 4px 8px;">Borrar</button>
+                        </form>
+                    {% else %}
+                        -
+                    {% endif %}
+                    <!-- === FIN: Condición de Rol === -->
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+            <!-- === FIN: CAMBIOS EN LA TABLA DE GASTOS === -->
+        </table>
+    {% else %}
+        <p>No se han registrado gastos.</p>
+    {% endif %}
     </div>
 </div>
 {% endblock %}
