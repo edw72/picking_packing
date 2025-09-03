@@ -106,6 +106,7 @@ class Orden(db.Model):
     destino = db.relationship('Destino', backref='ordenes')
     guia_encomienda = db.Column(db.String(100), nullable=True)
     nota_entrega = db.Column(db.Text, nullable=True)
+    fecha_entrega_final = db.Column(db.DateTime, nullable=True)
     def __repr__(self): return f'<Orden {self.numero_pedido}>'
 
 class User(UserMixin, db.Model):
@@ -1838,23 +1839,38 @@ def registrar_gasto_conductor():
 @conductor_required
 def registrar_pago_conductor():
     ruta_id = request.form.get('ruta_id')
-    orden_id = request.form.get('orden_id')
-    monto = request.form.get('monto_recibido')
-    nota = request.form.get('nota')
+    orden_id_str = request.form.get('orden_id') # Lo obtenemos como string
+    monto_str = request.form.get('monto_recibido')
+    nota = request.form.get('nota', '').strip()
 
-    if not all([ruta_id, orden_id, monto]):
-        flash("Ruta, orden y monto son obligatorios para registrar un pago.", "error")
+    # --- INICIO: LÓGICA DE VALIDACIÓN MEJORADA ---
+    if not ruta_id or not monto_str:
+        flash("Ruta y Monto son campos obligatorios.", "error")
         return redirect(url_for('detalle_ruta_conductor'))
         
+    # Si no se selecciona una orden, la nota se vuelve obligatoria
+    if not orden_id_str and not nota:
+        flash("Si no se asocia a una orden, la nota es obligatoria para explicar el cobro.", "error")
+        return redirect(url_for('detalle_ruta_conductor'))
+        
+    try:
+        monto = float(monto_str)
+        # Convertimos orden_id a entero solo si no está vacío
+        orden_id = int(orden_id_str) if orden_id_str else None
+    except (ValueError, TypeError):
+        flash("El monto o el ID de la orden no son válidos.", "error")
+        return redirect(url_for('detalle_ruta_conductor'))
+    # --- FIN: LÓGICA DE VALIDACIÓN MEJORADA ---
+
     nueva_transaccion = Transaccion(
         hoja_de_ruta_id=int(ruta_id),
-        orden_id=int(orden_id),
-        monto_recibido=float(monto),
+        orden_id=orden_id, # Puede ser None
+        monto_recibido=monto,
         nota=nota
     )
     db.session.add(nueva_transaccion)
     db.session.commit()
-    flash("Pago registrado con éxito.", "success")
+    flash("Pago/Cobro registrado con éxito.", "success")
     return redirect(url_for('detalle_ruta_conductor'))
 
 @app.route('/mi-ruta/finalizar', methods=['POST'])

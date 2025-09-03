@@ -249,7 +249,15 @@
                 <tbody>
                 {% for t in transacciones %}
                     <tr>
-                        <td><strong>¢{{ '%.2f'|format(t.monto_recibido) }}</strong> de Orden #{{ t.orden.numero_pedido }}</td>
+                        <td>
+                            <strong>¢{{ '%.2f'|format(t.monto_recibido) }}</strong>
+                            <!-- Lógica condicional para mostrar la fuente del pago -->
+                            {% if t.orden %}
+                                de Orden #{{ t.orden.numero_pedido }}
+                            {% else %}
+                                (Cobro Adicional)
+                            {% endif %}
+                        </td>
                         <td><small>{{ t.nota or '' }}</small></td>
                         <td>
                              <!-- === INICIO: Condición de Rol === -->

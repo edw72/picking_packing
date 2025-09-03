@@ -67,17 +67,25 @@
             <form action="{{ url_for('registrar_pago_conductor') }}" method="POST">
                 <input type="hidden" name="ruta_id" value="{{ ruta.id }}">
                 <div class="form-group">
-                    <label for="orden_id">Para la Orden</label>
-                    <select name="orden_id" required>
-                        <option value="">-- Seleccione una orden --</option>
+                    <label for="orden_id">Asociar a Orden (Opcional)</label>
+                    <select name="orden_id">
+                        <!-- Nueva opción para cobros sin orden -->
+                        <option value="">-- Cobro sin Orden Asociada --</option>
+                        
                         {% set todas_las_ordenes = clientes_agrupados.values()|sum(start=[]) %}
                         {% for orden in todas_las_ordenes|sort(attribute='numero_pedido') %}
                             <option value="{{ orden.id }}">#{{ orden.numero_pedido }} - {{ orden.cliente_nombre }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                <div class="form-group"><label for="monto_recibido">Monto (¢)</label><input type="number" name="monto_recibido" step="0.01" required></div>
-                <div class="form-group"><label for="nota">Nota (Opcional)</label><textarea name="nota" rows="2"></textarea></div>
+                <div class="form-group">
+                    <label for="monto_recibido">Monto (¢)</label>
+                    <input type="number" name="monto_recibido" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label for="nota">Nota (Obligatoria si no se asocia a orden)</label>
+                    <textarea name="nota" rows="2"></textarea>
+                </div>
                 <button type="submit" class="submit-btn">Registrar Pago</button>
             </form>
         </div>
