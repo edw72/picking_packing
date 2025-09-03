@@ -1775,7 +1775,6 @@ def detalle_ruta_conductor():
 @login_required
 @conductor_required
 def actualizar_estado_orden(orden_id):
-    # Buscamos la orden asegurándonos de que pertenece a la ruta activa del conductor
     orden = db.session.execute(db.select(Orden).join(Orden.hoja_de_ruta).where(
         Orden.id == orden_id,
         HojaDeRuta.conductor_id == current_user.id,
@@ -1787,29 +1786,35 @@ def actualizar_estado_orden(orden_id):
         return redirect(url_for('detalle_ruta_conductor'))
 
     nuevo_estado = request.form.get('estado')
-    
+    operacion_valida = True
+
     if nuevo_estado == 'ENTREGADO':
         orden.estado = 'ENTREGADO'
-        orden.nota_entrega = None # Limpiamos cualquier nota anterior
-        db.session.commit()
+        orden.nota_entrega = None
+        # --- INICIO: Sellar la hora ---
+        orden.fecha_entrega_final = datetime.datetime.utcnow()
+        # --- FIN: Sellar la hora ---
         flash(f"Orden #{orden.numero_pedido} marcada como ENTREGADA.", "success")
     
     elif nuevo_estado == 'ENTREGA_FALLIDA':
         nota = request.form.get('nota_fallida', '').strip()
-        
         if not nota:
-            # Si la nota está vacía, mostramos error y NO hacemos commit
+            operacion_valida = False
             flash("Debe proporcionar una razón para la entrega fallida.", "error")
         else:
-            # Actualizamos la orden con el nuevo estado y la nota
-            orden.estado = 'INCIDENCIA_ENTREGA' # El estado de 'cuarentena'
+            orden.estado = 'INCIDENCIA_ENTREGA'
             orden.nota_entrega = nota
-            db.session.commit()
+            # --- INICIO: Sellar la hora ---
+            orden.fecha_entrega_final = datetime.datetime.utcnow()
+            # --- FIN: Sellar la hora ---
             flash(f"Incidencia de entrega para la orden #{orden.numero_pedido} registrada.", "warning")
     else:
+        operacion_valida = False
         flash("Estado no válido.", "error")
 
-    # Siempre redirigimos al final
+    if operacion_valida:
+        db.session.commit()
+
     return redirect(url_for('detalle_ruta_conductor'))
 
 @app.route('/mi-ruta/registrar-gasto', methods=['POST'])

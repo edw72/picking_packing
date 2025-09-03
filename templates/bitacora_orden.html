@@ -102,13 +102,19 @@
                 <li class="timeline-item" style="padding-bottom:0;">
                     <div class="timeline-title">Entrega Final</div>
                     <span class="timeline-meta">
-                        {% if orden.hoja_de_ruta and orden.hoja_de_ruta.fecha_finalizacion %}
+                        <!-- === INICIO: LÓGICA DE FECHA MEJORADA === -->
+                        {% if orden.fecha_entrega_final %}
+                            <!-- Si tenemos la fecha exacta de la entrega, la mostramos -->
+                            {{ orden.fecha_entrega_final | localtime }}
+                        {% elif orden.hoja_de_ruta and orden.hoja_de_ruta.fecha_finalizacion %}
+                            <!-- Si no, mostramos la fecha de finalización de la ruta como respaldo -->
                             {{ orden.hoja_de_ruta.fecha_finalizacion | localtime }}
                         {% elif orden.estado in ['DESPACHADO', 'ENTREGADO', 'ENTREGA_FALLIDA', 'INCIDENCIA_ENTREGA'] %}
                             En proceso...
                         {% else %}
                             Pendiente
                         {% endif %}
+                        <!-- === FIN: LÓGICA DE FECHA MEJORADA === -->
                     </span>
                     
                     <!-- Mostramos el resultado de la entrega -->

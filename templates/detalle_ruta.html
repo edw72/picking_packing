@@ -178,7 +178,17 @@
         <h2 style="margin-top: 2rem;">Órdenes en la Ruta ({{ ordenes_asignadas|length }})</h2>
         {% if ordenes_asignadas %}
         <table>
-            <thead> <tr> <th>Pedido #</th> <th>Cliente y Destino</th> <th>Estado Actual</th> <th>Info Adicional</th> <th>Acción</th> </tr> </thead>
+             <!-- === INICIO: TABLA CORREGIDA CON TODAS LAS COLUMNAS === -->
+            <thead> 
+                <tr> 
+                    <th>Pedido #</th> 
+                    <th>Cliente y Destino</th> 
+                    <th>Estado Actual</th> 
+                    <th>Info Adicional</th>
+                    <th>Hora de Gestión</th>
+                    <th>Acción</th> 
+                </tr> 
+            </thead>
             <tbody>
                 {% for orden in ordenes_asignadas %}
                 <tr>
@@ -189,13 +199,20 @@
                     </td>
                     <td><span class="estado-{{ orden.estado }}">{{ orden.estado.replace('_', ' ') }}</span></td>
                     <td>
+                        <!-- Columna de Info Adicional (Guía) Restaurada -->
                         {% if orden.guia_encomienda %}
                             <div class="guia-info">Guía: {{ orden.guia_encomienda }}</div>
+                        {% else %}
+                            -
                         {% endif %}
                     </td>
                     <td>
+                        <!-- Columna de Hora de Gestión -->
+                        {{ orden.fecha_entrega_final|localtime if orden.fecha_entrega_final else '-' }}
+                    </td>
+                    <td>
+                        <!-- Columna de Acción -->
                         {% if ruta.estado == 'EN_PREPARACION' %}
-                        <!-- Este es un formulario completamente independiente -->
                         <form action="{{ url_for('quitar_orden_de_ruta', orden_id=orden.id) }}" method="POST" onsubmit="return confirm('¿Quitar esta orden de la ruta?');">
                             <button type="submit" class="remove-btn">Quitar</button>
                         </form>
@@ -206,6 +223,7 @@
                 </tr>
                 {% endfor %}
             </tbody>
+            <!-- === FIN: TABLA CORREGIDA === -->
         </table>
         {% else %}
         <p>Aún no se han añadido órdenes a esta hoja de ruta.</p>

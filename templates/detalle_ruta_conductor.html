@@ -79,7 +79,7 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="monto_recibido">Monto (¢)</label>
+                    <label for="monto_recibido">Monto (¢)</label>, con arequipe en lo posible  mmm
                     <input type="number" name="monto_recibido" step="0.01" required>
                 </div>
                 <div class="form-group">
@@ -105,8 +105,13 @@
                             <p style="margin: 0.5rem 0;"><strong>Destino:</strong> {{ orden.destino.nombre if orden.destino else 'Sin Asignar' }}</p>
                         </div>
                         <div>
-                            {% if orden.estado in ['ENTREGADO', 'ENTREGA_FALLIDA', 'INCIDENCIA_ENTREGA'] %}
-                                <span class="estado-{{ orden.estado }}">{{ orden.estado.replace('_', ' ') }}</span>
+                            {% if orden.estado in ['ENTREGADO', 'INCIDENCIA_ENTREGA'] %}
+                                <!-- Mostramos el estado y la hora de la acción -->
+                                <span class="estado-{{ orden.estado }}">{{ orden.estado.replace('_', ' ') }}</span><br>
+                                <small style="float: right; margin-top: 5px;">{{ orden.fecha_entrega_final|localtime }}</small>
+                            {% elif orden.estado == 'ENTREGA_FALLIDA' %}
+                                <!-- (Este caso ya no debería ocurrir, pero lo dejamos por si acaso) -->
+                                <span class="estado-ENTREGA_FALLIDA">Entrega Fallida</span>
                             {% else %}
                                 <span style="color: #777;">En Reparto</span>
                             {% endif %}
