@@ -18,12 +18,21 @@
     .estado-EN_PREPARACION { background-color: #f0ad4e; }
     .estado-EN_RUTA { background-color: #337ab7; }
     .estado-FINALIZADA { background-color: #5cb85c; }
+    #campos-externa, #campos-interna { border-left: 3px solid #eee; padding-left: 1rem; margin-top: 1rem; }
     
-    /* --- Estilos para el formulario dinámico --- */
-    #campos-externa, #campos-interna {
-        border-left: 3px solid #eee;
-        padding-left: 1rem;
-        margin-top: 1rem;
+    /* --- Nuevos Estilos para Búsqueda y Paginación --- */
+    .search-form { display: flex; gap: 10px; margin-bottom: 1.5rem; }
+    .search-form input { flex-grow: 1; }
+    .search-form button { padding: 0 20px; }
+    .pagination { margin-top: 1.5rem; text-align: center; }
+    .pagination a {
+        text-decoration: none; padding: 8px 15px; margin: 0 5px;
+        border-radius: 5px; color: #007bff; border: 1px solid #007bff;
+    }
+    .pagination .disabled { color: #ccc; border-color: #ccc; cursor: not-allowed; }
+    .pagination .current {
+        background-color: #007bff; color: white; font-weight: bold;
+        border-color: #007bff; z-index: 2;
     }
 </style>
 {% endblock %}
@@ -32,11 +41,9 @@
 <h1>Gestión de Hojas de Ruta</h1>
 
 {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-        {% for category, message in messages %}
-            <div class="flash flash-{{ category }}">{{ message }}</div>
-        {% endfor %}
-    {% endif %}
+    {% if messages %} {% for category, message in messages %}
+        <div class="flash flash-{{ category }}">{{ message }}</div>
+    {% endfor %} {% endif %}
 {% endwith %}
 
 <div class="admin-container">
@@ -94,7 +101,18 @@
     </div>
 
     <div class="list-container">
-        <h2>Hojas de Ruta Existentes</h2>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2>Hojas de Ruta Existentes</h2>
+            <!-- Total de resultados -->
+            <span>Mostrando {{ rutas|length }} de {{ pagination.total }}</span>
+        </div>
+
+        <!-- === INICIO: Formulario de Búsqueda === -->
+        <form method="GET" class="search-form">
+            <input type="text" name="search" placeholder="Buscar por # de Ruta o # de Pedido..." value="{{ search_query or '' }}">
+            <button type="submit" class="submit-btn" style="width: auto;">Buscar</button>
+        </form>
+        <!-- === FIN: Formulario de Búsqueda === -->
         <table>
             <thead>
                 <tr>
@@ -140,6 +158,24 @@
                 {% endfor %}
             </tbody>
         </table>
+
+        <!-- === INICIO: Controles de Paginación === -->
+        {% if pagination %}
+        <div class="pagination">
+            <a href="{{ url_for('gestionar_rutas', page=pagination.prev_num, search=search_query) if pagination.has_prev else '#' }}"
+               class="{{ 'disabled' if not pagination.has_prev }}">
+                &laquo; Anterior
+            </a>
+            
+            <span>Página {{ pagination.page }} de {{ pagination.pages }}</span>
+
+            <a href="{{ url_for('gestionar_rutas', page=pagination.next_num, search=search_query) if pagination.has_next else '#' }}"
+               class="{{ 'disabled' if not pagination.has_next }}">
+                Siguiente &raquo;
+            </a>
+        </div>
+        {% endif %}
+        <!-- === FIN: Controles de Paginación === -->
     </div>
 </div>
 {% endblock %}

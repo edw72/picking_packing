@@ -774,7 +774,7 @@ def dashboard_packing():
 
 # --- ENDPOINT DE LA API (SIN CAMBIOS) ---
 # Esta es la lista de codigos a procesar como recogidos pues son un servicio y no un producto fisico
-CODIGOS_DE_SERVICIO = {'0356', '0357', '0358', 'PROMO', 'EMP01'}
+CODIGOS_DE_SERVICIO = {'0356', '0357', '0358', '0359', 'PROMO', 'EMP01'}
 
 @app.route('/api/ordenes/crear-desde-factura', methods=['POST'])
 def crear_orden_desde_factura():
@@ -1182,12 +1182,42 @@ def gestionar_rutas():
         # Redirigimos al detalle para el siguiente paso lógico
         return redirect(url_for('detalle_ruta', ruta_id=nueva_ruta.id))
 
-    # --- Lógica GET (sin cambios) ---
-    rutas_query = db.select(HojaDeRuta).options(joinedload(HojaDeRuta.conductor)).order_by(HojaDeRuta.fecha_creacion.desc())
-    rutas = db.session.execute(rutas_query).scalars().all()
+     # --- INICIO: NUEVA LÓGICA DE BÚSQUEDA Y PAGINACIÓN ---
+    page = request.args.get('page', 1, type=int)
+    search_query = request.args.get('search', '').strip()
+    RUTAS_POR_PAGINA = 30 # Puedes ajustar este número
+
+    # La consulta base
+    query_base = db.select(HojaDeRuta).options(joinedload(HojaDeRuta.conductor))
+
+    # Si hay un término de búsqueda, modificamos la consulta
+    if search_query:
+        # Buscamos por ID de Ruta o por un número de pedido dentro de la ruta
+        query_base = query_base.outerjoin(HojaDeRuta.ordenes).where(
+            or_(
+                # Convertimos el ID de la ruta a texto para poder usar 'ilike'
+                func.cast(HojaDeRuta.id, db.String).ilike(f'%{search_query}%'),
+                Orden.numero_pedido.ilike(f'%{search_query}%')
+            )
+        ).distinct() # Distinct es crucial para evitar duplicados si una ruta coincide por varias órdenes
+    
+    # Aplicamos el ordenamiento
+    query_base = query_base.order_by(HojaDeRuta.fecha_creacion.desc())
+
+    # Usamos el paginador de Flask-SQLAlchemy
+    pagination = db.paginate(query_base, page=page, per_page=RUTAS_POR_PAGINA, error_out=False)
+    rutas = pagination.items
+    # --- FIN: NUEVA LÓGICA ---
+
     conductores = db.session.execute(db.select(User).filter_by(role='conductor').order_by(User.username)).scalars().all()
     
-    return render_template('gestionar_rutas.html', rutas=rutas, conductores=conductores)
+    return render_template(
+        'gestionar_rutas.html', 
+        rutas=rutas, 
+        conductores=conductores,
+        pagination=pagination, # Pasamos el objeto de paginación a la plantilla
+        search_query=search_query # Pasamos la búsqueda para mantenerla en el campo de texto
+    )
 
 
 
