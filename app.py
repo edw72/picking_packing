@@ -652,7 +652,7 @@ def cancelar_orden(orden_id):
         
 # En app.py, añade esta nueva ruta de API
 
-@app.route('/api/lote/<int:lote_id>/item/<codigo_articulo>/reportar-incidencia', methods=['POST'])
+@app.route('/api/lote/<int:lote_id>/item/<path:codigo_articulo>/reportar-incidencia', methods=['POST'])
 @login_required
 def api_reportar_incidencia(lote_id, codigo_articulo):
     print(f"--- INICIANDO REPORTE DE INCIDENCIA para Lote {lote_id}, Artículo {codigo_articulo} ---")
@@ -1490,7 +1490,7 @@ def api_ordenes_pendientes_count():
 
 
 
-@app.route('/api/lote/<int:lote_id>/codigo/<codigo_articulo>/completar', methods=['POST'])
+@app.route('/api/lote/<int:lote_id>/codigo/<path:codigo_articulo>/completar', methods=['POST'])
 @login_required
 @admin_required
 def api_completar_codigo_picking(lote_id, codigo_articulo):
