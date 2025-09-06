@@ -71,6 +71,7 @@
     <table style="text-align: left; margin-top: 1rem; font-size: 1.1rem; border: none; max-width: 400px; margin-left: auto; margin-right: auto;">
         <tr style="border: none;"><td style="border: none;"><strong>Cheques a Entregar:</strong></td><td style="text-align: right; border: none;">¢{{ '%.2f'|format(desglose_pagos.CHEQUE) }}</td></tr>
         <tr style="border: none;"><td style="border: none;"><strong>Sinpe Móvil Reportado:</strong></td><td style="text-align: right; border: none;">¢{{ '%.2f'|format(desglose_pagos.SINPE_MOVIL) }}</td></tr>
+        <tr style="border: none;"><td style="border: none;"><strong>Total Recibido por Transferencia:</strong></td><td style="text-align: right; border: none;">¢{{ '%.2f'|format(desglose_pagos.TRANSFERENCIA_BANCARIA) }}</td></tr>
     </table>
 </div>
 <!-- === FIN: RESUMEN FINANCIERO CORREGIDO === -->
@@ -106,6 +107,7 @@
                         <option value="EFECTIVO">Efectivo</option>
                         <option value="CHEQUE">Cheque</option>
                         <option value="SINPE_MOVIL">Sinpe Móvil</option>
+                        <option value="TRANSFERENCIA_BANCARIA">Transferencia Bancaria</option>
                     </select>
                 </div>
                 <div class="form-group">

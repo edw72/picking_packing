@@ -1585,7 +1585,7 @@ def detalle_ruta(ruta_id):
     gastos_ruta = db.session.execute(db.select(GastoViaje).where(GastoViaje.hoja_de_ruta_id == ruta.id)).scalars().all()
 
     total_recibido = 0
-    desglose_pagos = {'EFECTIVO': 0.0, 'CHEQUE': 0.0, 'SINPE_MOVIL': 0.0}
+    desglose_pagos = {'EFECTIVO': 0.0, 'CHEQUE': 0.0, 'SINPE_MOVIL': 0.0, 'TRANSFERENCIA_BANCARIA': 0.0}
     for t in transacciones_ruta:
         total_recibido += t.monto_recibido
         if t.metodo_pago in desglose_pagos:
@@ -1781,7 +1781,8 @@ def detalle_ruta_conductor():
     desglose_pagos = {
         'EFECTIVO': 0.0,
         'CHEQUE': 0.0,
-        'SINPE_MOVIL': 0.0
+        'SINPE_MOVIL': 0.0,
+        'TRANSFERENCIA_BANCARIA': 0.0
     }
     for t in transacciones_ruta:
         total_recibido += t.monto_recibido
