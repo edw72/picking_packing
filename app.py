@@ -201,17 +201,15 @@ class HojaDeRuta(db.Model):
 class Transaccion(db.Model):
     __tablename__ = 'transaccion'
     id = db.Column(db.Integer, primary_key=True)
-    
     hoja_de_ruta_id = db.Column(db.Integer, db.ForeignKey('hoja_de_ruta.id'), nullable=False)
-    
-    # --- INICIO: CAMBIO CLAVE ---
-    # Hacemos que la orden sea opcional
-    orden_id = db.Column(db.Integer, db.ForeignKey('orden.id'), nullable=True) 
-    # --- FIN: CAMBIO CLAVE ---
-    
+    orden_id = db.Column(db.Integer, db.ForeignKey('orden.id'), nullable=True) # <-- Asegúrate de que sea nullable=True
     orden = db.relationship('Orden')
     monto_recibido = db.Column(db.Float, nullable=False)
-    nota = db.Column(db.Text, nullable=True) # La nota ahora es más importante
+    
+    # --- AÑADE ESTA LÍNEA ---
+    metodo_pago = db.Column(db.String(30), nullable=False, default='EFECTIVO')
+    
+    nota = db.Column(db.Text, nullable=True)
     fecha_registro = db.Column(db.DateTime, default=datetime.datetime.utcnow)
 
     def __repr__(self):
