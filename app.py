@@ -1571,49 +1571,38 @@ def generar_pdf_etiquetas(orden_id):
 @login_required
 @logistica_required
 def detalle_ruta(ruta_id):
-    # 1. Buscamos la hoja de ruta y cargamos eficientemente el conductor
     ruta_query = db.select(HojaDeRuta).where(HojaDeRuta.id == ruta_id).options(joinedload(HojaDeRuta.conductor))
     ruta = db.session.execute(ruta_query).scalar_one_or_none()
     if not ruta:
         abort(404)
 
-    # 2. Obtenemos las órdenes asignadas a esta ruta, cargando también su destino
-    ordenes_asignadas = db.session.execute(
-        db.select(Orden).where(Orden.hoja_de_ruta_id == ruta.id)
-        .options(joinedload(Orden.destino))
-        .order_by(Orden.numero_pedido)
-    ).scalars().all()
-
-    # 3. (Solo si la ruta está en preparación) Obtenemos las órdenes disponibles
+    ordenes_asignadas = db.session.execute(db.select(Orden).where(Orden.hoja_de_ruta_id == ruta.id).options(joinedload(Orden.destino)).order_by(Orden.numero_pedido)).scalars().all()
     ordenes_disponibles = []
     if ruta.estado == 'EN_PREPARACION':
-        ordenes_disponibles = db.session.execute(db.select(Orden).filter(
-            Orden.estado == 'LISTO_PARA_DESPACHO',
-            Orden.hoja_de_ruta_id.is_(None)
-        ).order_by(Orden.fecha_creacion.asc())).scalars().all()
+        ordenes_disponibles = db.session.execute(db.select(Orden).filter(Orden.estado == 'LISTO_PARA_DESPACHO', Orden.hoja_de_ruta_id.is_(None)).order_by(Orden.fecha_creacion.asc())).scalars().all()
 
-    # --- INICIO: NUEVA LÓGICA DE CÁLCULOS FINANCIEROS Y DE DATOS ---
-    
-    # 4. Obtenemos todas las transacciones (pagos) y gastos de esta ruta
     transacciones_ruta = db.session.execute(db.select(Transaccion).where(Transaccion.hoja_de_ruta_id == ruta.id)).scalars().all()
     gastos_ruta = db.session.execute(db.select(GastoViaje).where(GastoViaje.hoja_de_ruta_id == ruta.id)).scalars().all()
 
-    # 5. Calculamos los totales y el balance
-    total_recibido = sum(t.monto_recibido for t in transacciones_ruta)
+    total_recibido = 0
+    desglose_pagos = {'EFECTIVO': 0.0, 'CHEQUE': 0.0, 'SINPE_MOVIL': 0.0}
+    for t in transacciones_ruta:
+        total_recibido += t.monto_recibido
+        if t.metodo_pago in desglose_pagos:
+            desglose_pagos[t.metodo_pago] += t.monto_recibido
+    
     total_gastado = sum(g.monto_gastado for g in gastos_ruta)
     balance = (ruta.gastos_asignados + total_recibido) - total_gastado
-
-    # --- FIN: NUEVA LÓGICA ---
 
     return render_template(
         'detalle_ruta.html', 
         ruta=ruta, 
         ordenes_asignadas=ordenes_asignadas,
         ordenes_disponibles=ordenes_disponibles,
-        # Pasamos los nuevos datos a la plantilla
         transacciones=transacciones_ruta,
         gastos=gastos_ruta,
         total_recibido=total_recibido,
+        desglose_pagos=desglose_pagos,
         total_gastado=total_gastado,
         balance=balance
     )
@@ -1783,19 +1772,35 @@ def detalle_ruta_conductor():
         clientes_agrupados[cliente_key].append(orden)
     # --- FIN: NUEVA LÓGICA DE AGRUPACIÓN ---
 
-    # Cálculos financieros (sin cambios)
-    total_gastado = db.session.scalar(db.select(func.sum(GastoViaje.monto_gastado)).where(GastoViaje.hoja_de_ruta_id == ruta.id)) or 0.0
-    total_recibido = db.session.scalar(db.select(func.sum(Transaccion.monto_recibido)).where(Transaccion.hoja_de_ruta_id == ruta.id)) or 0.0
+    # --- INICIO: LÓGICA DE CÁLCULO FALTANTE AÑADIDA ---
+    # Obtenemos todas las transacciones y gastos de esta ruta
+    transacciones_ruta = db.session.execute(db.select(Transaccion).where(Transaccion.hoja_de_ruta_id == ruta.id)).scalars().all()
+    gastos_ruta = db.session.execute(db.select(GastoViaje).where(GastoViaje.hoja_de_ruta_id == ruta.id)).scalars().all()
+
+    total_recibido = 0
+    desglose_pagos = {
+        'EFECTIVO': 0.0,
+        'CHEQUE': 0.0,
+        'SINPE_MOVIL': 0.0
+    }
+    for t in transacciones_ruta:
+        total_recibido += t.monto_recibido
+        if t.metodo_pago in desglose_pagos:
+            desglose_pagos[t.metodo_pago] += t.monto_recibido
+    
+    total_gastado = sum(g.monto_gastado for g in gastos_ruta)
     balance = (ruta.gastos_asignados + total_recibido) - total_gastado
+    # --- FIN: LÓGICA DE CÁLCULO FALTANTE AÑADIDA ---
 
     return render_template(
         'detalle_ruta_conductor.html',
         ruta=ruta,
-        # Pasamos el diccionario agrupado por cliente
         clientes_agrupados=clientes_agrupados,
         total_ordenes=len(ordenes_en_ruta),
+        # Pasamos todas las nuevas variables a la plantilla
         total_gastado=total_gastado,
         total_recibido=total_recibido,
+        desglose_pagos=desglose_pagos,
         balance=balance
     )
 
@@ -1872,34 +1877,32 @@ def registrar_gasto_conductor():
 @conductor_required
 def registrar_pago_conductor():
     ruta_id = request.form.get('ruta_id')
-    orden_id_str = request.form.get('orden_id') # Lo obtenemos como string
+    orden_id_str = request.form.get('orden_id')
     monto_str = request.form.get('monto_recibido')
     nota = request.form.get('nota', '').strip()
+    metodo_pago = request.form.get('metodo_pago')
 
-    # --- INICIO: LÓGICA DE VALIDACIÓN MEJORADA ---
-    if not ruta_id or not monto_str:
-        flash("Ruta y Monto son campos obligatorios.", "error")
+    if not all([ruta_id, monto_str, metodo_pago]):
+        flash("Ruta, Monto y Método de Pago son campos obligatorios.", "error")
         return redirect(url_for('detalle_ruta_conductor'))
         
-    # Si no se selecciona una orden, la nota se vuelve obligatoria
     if not orden_id_str and not nota:
         flash("Si no se asocia a una orden, la nota es obligatoria para explicar el cobro.", "error")
         return redirect(url_for('detalle_ruta_conductor'))
         
     try:
         monto = float(monto_str)
-        # Convertimos orden_id a entero solo si no está vacío
         orden_id = int(orden_id_str) if orden_id_str else None
     except (ValueError, TypeError):
         flash("El monto o el ID de la orden no son válidos.", "error")
         return redirect(url_for('detalle_ruta_conductor'))
-    # --- FIN: LÓGICA DE VALIDACIÓN MEJORADA ---
 
     nueva_transaccion = Transaccion(
         hoja_de_ruta_id=int(ruta_id),
-        orden_id=orden_id, # Puede ser None
+        orden_id=orden_id,
         monto_recibido=monto,
-        nota=nota
+        nota=nota,
+        metodo_pago=metodo_pago
     )
     db.session.add(nueva_transaccion)
     db.session.commit()

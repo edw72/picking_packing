@@ -41,15 +41,39 @@
 {% block content %}
 <a href="{{ url_for('dashboard_conductor') }}" class="back-link">← Volver a mi Dashboard</a>
 
+<!-- === INICIO: RESUMEN FINANCIERO CORREGIDO PARA EL CONDUCTOR === -->
 <div class="card resumen-financiero">
-    <h2>Resumen Financiero de la Ruta</h2>
+    <h2>Resumen Financiero de Liquidación</h2>
     <div class="resumen-grid">
-        <div><div class="valor">¢{{ '%.2f'|format(ruta.gastos_asignados) }}</div><div class="etiqueta">Dinero Recibido</div></div>
-        <div><div class="valor">¢{{ '%.2f'|format(total_recibido) }}</div><div class="etiqueta">Pagos de Clientes</div></div>
-        <div><div class="valor">- ¢{{ '%.2f'|format(total_gastado) }}</div><div class="etiqueta">Gastos Reportados</div></div>
-        <div><div class="valor {{ 'balance-positivo' if balance >= 0 else 'balance-negativo' }}">¢{{ '%.2f'|format(balance) }}</div><div class="etiqueta">Balance a Liquidar</div></div>
+        <div>
+            <div class="valor">¢{{ '%.2f'|format(ruta.gastos_asignados) }}</div>
+            <div class="etiqueta">Dinero Asignado (Efectivo)</div>
+        </div>
+        <div>
+            <div class="valor">¢{{ '%.2f'|format(desglose_pagos.EFECTIVO) }}</div>
+            <div class="etiqueta">Recibido en Efectivo</div>
+        </div>
+        <div>
+            <div class="valor">- ¢{{ '%.2f'|format(total_gastado) }}</div>
+            <div class="etiqueta">Gastos Reportados (Efectivo)</div>
+        </div>
+        <div>
+            <!-- Calculamos el efectivo a devolver, igual que en la vista de admin -->
+            {% set efectivo_a_liquidar = ruta.gastos_asignados + desglose_pagos.EFECTIVO - total_gastado %}
+            <div class="valor {{ 'balance-positivo' if efectivo_a_liquidar >= 0 else 'balance-negativo' }}">
+                ¢{{ '%.2f'|format(efectivo_a_liquidar) }}
+            </div>
+            <div class="etiqueta">Efectivo a Liquidar</div>
+        </div>
     </div>
+    <hr>
+    <!-- Tabla de desglose para otros métodos (idéntica a la del admin) -->
+    <table style="text-align: left; margin-top: 1rem; font-size: 1.1rem; border: none; max-width: 400px; margin-left: auto; margin-right: auto;">
+        <tr style="border: none;"><td style="border: none;"><strong>Cheques a Entregar:</strong></td><td style="text-align: right; border: none;">¢{{ '%.2f'|format(desglose_pagos.CHEQUE) }}</td></tr>
+        <tr style="border: none;"><td style="border: none;"><strong>Sinpe Móvil Reportado:</strong></td><td style="text-align: right; border: none;">¢{{ '%.2f'|format(desglose_pagos.SINPE_MOVIL) }}</td></tr>
+    </table>
 </div>
+<!-- === FIN: RESUMEN FINANCIERO CORREGIDO === -->
 
 <div class="form-grid">
     <div>
@@ -69,9 +93,7 @@
                 <div class="form-group">
                     <label for="orden_id">Asociar a Orden (Opcional)</label>
                     <select name="orden_id">
-                        <!-- Nueva opción para cobros sin orden -->
                         <option value="">-- Cobro sin Orden Asociada --</option>
-                        
                         {% set todas_las_ordenes = clientes_agrupados.values()|sum(start=[]) %}
                         {% for orden in todas_las_ordenes|sort(attribute='numero_pedido') %}
                             <option value="{{ orden.id }}">#{{ orden.numero_pedido }} - {{ orden.cliente_nombre }}</option>
@@ -79,12 +101,20 @@
                     </select>
                 </div>
                 <div class="form-group">
+                    <label for="metodo_pago">Método de Pago</label>
+                    <select name="metodo_pago" required>
+                        <option value="EFECTIVO">Efectivo</option>
+                        <option value="CHEQUE">Cheque</option>
+                        <option value="SINPE_MOVIL">Sinpe Móvil</option>
+                    </select>
+                </div>
+                <div class="form-group">
                     <label for="monto_recibido">Monto (¢)</label>
                     <input type="number" name="monto_recibido" step="0.01" required>
                 </div>
                 <div class="form-group">
-                    <label for="nota">Nota (Obligatoria si no se asocia a orden)</label>
-                    <textarea name="nota" rows="2"></textarea>
+                    <label for="nota">Nota / Referencia</label>
+                    <textarea name="nota" rows="2" placeholder="Ej: # cheque, # teléfono"></textarea>
                 </div>
                 <button type="submit" class="submit-btn">Registrar Pago</button>
             </form>

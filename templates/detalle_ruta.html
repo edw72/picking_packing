@@ -150,25 +150,23 @@
 
 <!-- === INICIO: Resumen Financiero === -->
 <div class="grid-column resumen-financiero">
-    <h2>Resumen Financiero</h2>
+    <h2>Resumen Financiero de Liquidación</h2>
     <div class="resumen-grid">
+        <div><div class="valor">¢{{ '%.2f'|format(ruta.gastos_asignados) }}</div><div class="etiqueta">Dinero Asignado (Efectivo)</div></div>
+        <div><div class="valor">¢{{ '%.2f'|format(desglose_pagos.EFECTIVO) }}</div><div class="etiqueta">Recibido en Efectivo</div></div>
+        <div><div class="valor">- ¢{{ '%.2f'|format(total_gastado) }}</div><div class="etiqueta">Gastos Reportados (Efectivo)</div></div>
         <div>
-            <div class="valor">¢{{ '%.2f'|format(ruta.gastos_asignados) }}</div>
-            <div class="etiqueta">Dinero Asignado</div>
-        </div>
-        <div>
-            <div class="valor">¢{{ '%.2f'|format(total_recibido) }}</div>
-            <div class="etiqueta">Pagos Recibidos</div>
-        </div>
-        <div>
-            <div class="valor">- ¢{{ '%.2f'|format(total_gastado) }}</div>
-            <div class="etiqueta">Gastos Reportados</div>
-        </div>
-        <div>
-            <div class="valor {{ 'balance-positivo' if balance >= 0 else 'balance-negativo' }}">¢{{ '%.2f'|format(balance) }}</div>
-            <div class="etiqueta">Balance a Liquidar</div>
+            {% set efectivo_a_liquidar = ruta.gastos_asignados + desglose_pagos.EFECTIVO - total_gastado %}
+            <div class="valor {{ 'balance-positivo' if efectivo_a_liquidar >= 0 else 'balance-negativo' }}">¢{{ '%.2f'|format(efectivo_a_liquidar) }}</div>
+            <div class="etiqueta">Efectivo a Liquidar</div>
         </div>
     </div>
+    <hr>
+    <table style="text-align: left; margin-top: 1rem; font-size: 1.1rem; border: none;">
+        <tr style="border: none;"><td style="border: none;"><strong>Total Recibido en Cheques:</strong></td><td style="text-align: right; border: none;">¢{{ '%.2f'|format(desglose_pagos.CHEQUE) }}</td></tr>
+        <tr style="border: none;"><td style="border: none;"><strong>Total Recibido en Sinpe Móvil:</strong></td><td style="text-align: right; border: none;">¢{{ '%.2f'|format(desglose_pagos.SINPE_MOVIL) }}</td></tr>
+        <tr style="border-top: 2px solid #333; font-weight: bold;"><td style="border: none;">Balance General a Liquidar:</td><td style="text-align: right; border: none;">¢{{ '%.2f'|format(balance) }}</td></tr>
+    </table>
 </div>
 <!-- === FIN: Resumen Financiero === -->
 
@@ -262,20 +260,12 @@
         <h4>Pagos Recibidos</h4>
         {% if transacciones %}
             <table>
-                 <!-- === INICIO: CAMBIOS EN LA TABLA DE PAGOS === -->
-                <thead><tr><th>Monto y Orden</th><th>Nota</th><th>Acción</th></tr></thead>
+                <thead><tr><th>Monto y Orden</th><th>Método</th><th>Nota / Referencia</th><th>Acción</th></tr></thead>
                 <tbody>
                 {% for t in transacciones %}
                     <tr>
-                        <td>
-                            <strong>¢{{ '%.2f'|format(t.monto_recibido) }}</strong>
-                            <!-- Lógica condicional para mostrar la fuente del pago -->
-                            {% if t.orden %}
-                                de Orden #{{ t.orden.numero_pedido }}
-                            {% else %}
-                                (Cobro Adicional)
-                            {% endif %}
-                        </td>
+                        <td><strong>¢{{ '%.2f'|format(t.monto_recibido) }}</strong> {% if t.orden %}de Orden #{{ t.orden.numero_pedido }}{% else %}(Cobro Adicional){% endif %}</td>
+                        <td>{{ t.metodo_pago.replace('_', ' ') }}</td>
                         <td><small>{{ t.nota or '' }}</small></td>
                         <td>
                              <!-- === INICIO: Condición de Rol === -->
