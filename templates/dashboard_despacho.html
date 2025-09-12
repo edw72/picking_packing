@@ -9,7 +9,13 @@
         table { width: 100%; border-collapse: collapse; margin-top: 1em; background-color: white; }
         th, td { border: 1px solid #ddd; padding: 0.8em; text-align: left; }
         th { background-color: #f8f9fa; }
-        .action-link { padding: 8px 15px; font-size: 14px; font-weight: bold; color: white; background-color: #f0ad4e; border-radius: 5px; text-decoration: none; text-align: center; }
+        .action-link { padding: 8px 15px; font-size: 14px; font-weight: bold; color: white; background-color: #f0ad4e; border-radius: 5px; text-decoration: none; text-align: center; margin: 5px; }
+        .correct-btn { 
+            background-color: #f0ad4e; 
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
+        }
         .navegacion-modulos { margin-bottom: 1.5em; padding: 1em; background-color: #e9ecef; border-radius: 5px; }
     </style>
 {% endblock %}
@@ -63,6 +69,12 @@
                     <a href="{{ url_for('asignar_destino', orden_id=orden.id) }}" class="action-link">
                         {% if orden.destino %}Editar Destino{% else %}Asignar Destino{% endif %}
                     </a>
+                    <!-- === INICIO: NUEVO BOTÓN PARA CORREGIR EMPAQUE === -->
+                    <form action="{{ url_for('corregir_empaque_orden', orden_id=orden.id) }}" method="POST" style="display: inline;" 
+                          onsubmit="return confirm('¿Está seguro de que desea corregir el empaque? Se borrarán las etiquetas existentes y deberá finalizar el packing de nuevo.');">
+                        <button type="submit" class="action-link correct-btn">Corregir Empaque</button>
+                    </form>
+                    <!-- === FIN: NUEVO BOTÓN === -->
                 </td>
             </tr>
             {% else %}

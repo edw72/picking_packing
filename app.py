@@ -937,6 +937,43 @@ def finalizar_packing(orden_id):
         return redirect(url_for('detalle_packing', orden_id=orden_id))
     ### --- FIN: CAPA 2 --- ###
     
+@app.route('/orden/<int:orden_id>/corregir-empaque', methods=['POST'])
+@login_required
+@logistica_required # Tanto admins como operarios pueden corregir
+def corregir_empaque_orden(orden_id):
+    orden = db.get_or_404(Orden, orden_id)
+
+    # --- Verificación de Seguridad ---
+    # Solo podemos corregir órdenes que están en la "sala de espera" de despacho.
+    if orden.estado != 'LISTO_PARA_DESPACHO':
+        flash(f'Error: La orden #{orden.numero_pedido} no se puede corregir desde su estado actual.', 'error')
+        return redirect(url_for('dashboard_despacho'))
+
+    # --- Proceso de Reversión ---
+    try:
+        # 1. Borramos todos los bultos existentes asociados a la orden
+        for bulto in orden.bultos:
+            db.session.delete(bulto)
+        
+        # 2. Revertimos el estado de la orden
+        orden.estado = 'EMPACADO'
+        
+        # 3. Limpiamos los datos de finalización para consistencia
+        orden.packer_id = None
+        orden.fecha_fin_packing = None
+
+        db.session.commit()
+        
+        flash(f'Empaque de la orden #{orden.numero_pedido} revertido. Por favor, finalice el packing de nuevo.', 'info')
+        
+        # 4. Redirigimos al usuario directamente a la pantalla de packing para que la corrija
+        return redirect(url_for('detalle_packing', orden_id=orden.id, reset='true'))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Ocurrió un error al intentar corregir el empaque: {e}', 'error')
+        return redirect(url_for('dashboard_despacho'))
+    
 
 # === INICIO: NUEVAS RUTAS PARA IMPRESIÓN Y QR (PASO 4) ===
 @app.route('/orden/<int:orden_id>/imprimir-etiquetas')
