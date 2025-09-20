@@ -310,58 +310,61 @@ def borrar_usuario(user_id):
 @app.route('/')
 @login_required
 def dashboard():
+    # Redirección para conductores (sin cambios)
     if current_user.role == 'conductor':
         return redirect(url_for('dashboard_conductor'))
-    estados_posibles = ['PENDIENTE', 'EN_PICKING', 'CON_INCIDENCIA', 'EMPACADO', 'LISTO_PARA_DESPACHO', 'DESPACHADO', 'CANCELADA']
+
+    estados_posibles = ['PENDIENTE', 'EN_PICKING', 'CON_INCIDENCIA', 'EMPACADO', 'LISTO_PARA_DESPACHO', 'DESPACHADO', 'CANCELADA', 'RETENIDO']
     estado_filtro = request.args.get('estado')
     
     ordenes_canceladas_para_devolver = []
+    
+    # --- INICIO: LÓGICA DE CONSULTA CORREGIDA Y SIMPLIFICADA ---
+    
+    # Empezamos con la consulta base
+    query_base = db.select(Orden)
 
-    # --- ESTRUCTURA IF/ELSE COMPLETA Y CORRECTA ---
     if current_user.role == 'admin':
-        # --- LÓGICA DEL ADMIN ---
-        query_base = Orden.query
-
         if estado_filtro:
-            # Si el admin usa un filtro, se respeta.
-            query_base = query_base.filter(Orden.estado == estado_filtro)
+            # Si el admin filtra, respetamos el filtro
+            query_base = query_base.where(Orden.estado == estado_filtro)
         else:
-            # Vista por defecto del admin: Muestra PENDIENTE y EN_PICKING.
-            # Se usa el método .in_() para filtrar por una lista de estados.
-            query_base = query_base.filter(Orden.estado.in_(['PENDIENTE', 'EN_PICKING']))
+            # Vista por defecto del admin: PENDIENTE y EN_PICKING.
+            # Esto excluye automáticamente a RETENIDO y otros estados.
+            query_base = query_base.where(Orden.estado.in_(['PENDIENTE', 'EN_PICKING']))
 
-    else: # Si es 'operario'
-        # --- LÓGICA DEL OPERARIO ---
-        # 1. Buscamos notificaciones de cancelación para el operario
-        ordenes_canceladas_para_devolver = Orden.query.join(Orden.lote).filter(
+    else:  # Lógica para 'operario'
+        # 1. Buscamos notificaciones de cancelación para el operario (sin cambios)
+        ordenes_canceladas_para_devolver = db.session.execute(db.select(Orden).join(Orden.lote).where(
             Orden.estado == 'CANCELADA',
             LotePicking.operario_id == current_user.id,
             Orden.devolucion_confirmada == False,
             Orden.items.any(ItemOrden.cantidad_recogida > 0)
-        ).all()
+        )).scalars().all()
 
-        # 2. Buscamos las órdenes de trabajo del operario
-        query_base = Orden.query # Reiniciamos la consulta base para el operario
-
+        # 2. Construimos la consulta principal para el operario
         if estado_filtro:
-            # Si el operario usa un filtro, se respeta
-            query_base = query_base.filter(Orden.estado == estado_filtro)
-            # Si filtra por 'EN_PICKING', solo mostramos los suyos
+            # Si el operario filtra, respetamos el filtro
+            query_base = query_base.where(Orden.estado == estado_filtro)
+            # Y si filtra por 'EN_PICKING', nos aseguramos de que solo vea los suyos
             if estado_filtro == 'EN_PICKING':
-                 query_base = query_base.filter(Orden.lote.has(operario_id=current_user.id))
+                query_base = query_base.join(Orden.lote).where(LotePicking.operario_id == current_user.id)
         else:
-            # Vista por defecto del operario: PENDIENTES o EN_PICKING asignadas a él
-            query_base = query_base.filter(
+            # Vista por defecto del operario:
+            # - Órdenes PENDIENTES (disponibles para todos los operarios)
+            # - Órdenes EN_PICKING que están asignadas A ÉL.
+            query_base = query_base.where(
                 or_(
                     Orden.estado == 'PENDIENTE',
                     Orden.lote.has(operario_id=current_user.id, estado='ACTIVO')
                 )
             )
-    # --- FIN DE ESTRUCTURA IF/ELSE ---
+            
+    # --- FIN: LÓGICA DE CONSULTA CORREGIDA ---
 
     # El resto de la función es común para ambos roles
-    ordenes = query_base.order_by(Orden.fecha_creacion.desc()).all()
-    operarios = User.query.filter_by(role='operario').order_by(User.username).all()
+    ordenes = db.session.execute(query_base.order_by(Orden.fecha_creacion.desc())).scalars().all()
+    operarios = db.session.execute(db.select(User).filter_by(role='operario').order_by(User.username)).scalars().all()
     
     return render_template('dashboard.html', 
                            ordenes=ordenes, 
@@ -846,6 +849,21 @@ def crear_orden_desde_factura():
         import traceback
         traceback.print_exc()
         return jsonify({'error': f'Ocurrió un error en el servidor: {str(e)}'}), 500
+    
+@app.route('/orden/<int:orden_id>/retener', methods=['POST'])
+@login_required
+@admin_required # Solo los admins pueden retener órdenes
+def retener_orden(orden_id):
+    orden = db.get_or_404(Orden, orden_id)
+    
+    if orden.estado == 'PENDIENTE':
+        orden.estado = 'RETENIDO'
+        db.session.commit()
+        flash(f'La orden #{orden.numero_pedido} ha sido puesta en retención.', 'success')
+    else:
+        flash('Solo se pueden retener las órdenes que están en estado "Pendiente".', 'error')
+
+    return redirect(url_for('dashboard'))
 
 
 @app.route('/packing/<int:orden_id>', methods=['GET']) # Ya no necesitamos POST aquí
@@ -2378,6 +2396,31 @@ def editar_gasto(gasto_id):
             flash('El monto ingresado no es un número válido.', 'error')
             
     return render_template('editar_movimiento.html', movimiento=gasto, tipo='Gasto')
+
+@app.route('/ordenes-retenidas')
+@login_required
+@admin_required # Solo admins pueden ver y gestionar esto
+def ordenes_retenidas():
+    ordenes = db.session.execute(
+        db.select(Orden).where(Orden.estado == 'RETENIDO').order_by(Orden.fecha_creacion.asc())
+    ).scalars().all()
+    return render_template('ordenes_retenidas.html', ordenes=ordenes)
+
+
+@app.route('/orden/<int:orden_id>/activar', methods=['POST'])
+@login_required
+@admin_required
+def activar_orden(orden_id):
+    orden = db.get_or_404(Orden, orden_id)
+
+    if orden.estado == 'RETENIDO':
+        orden.estado = 'PENDIENTE'
+        db.session.commit()
+        flash(f'La orden #{orden.numero_pedido} ha sido activada y ahora está en la lista de picking.', 'success')
+    else:
+        flash('Esta orden no se puede activar.', 'error')
+
+    return redirect(url_for('ordenes_retenidas'))
 
 # 5. PUNTO DE ENTRADA
 if __name__ == '__main__':

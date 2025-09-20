@@ -1,0 +1,57 @@
+{% extends "layout.html" %}
+
+{% block title %}Órdenes Retenidas (Apartados){% endblock %}
+
+{% block styles %}
+<style>
+    table { width: 100%; border-collapse: collapse; margin-top: 1em; background-color: white; }
+    th, td { border: 1px solid #ddd; padding: 0.8em; text-align: left; }
+    th { background-color: #f8f9fa; }
+    .activate-btn {
+        background-color: #5cb85c; color: white; border: none; padding: 8px 15px;
+        font-size: 14px; font-weight: bold; border-radius: 5px; cursor: pointer;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+    <h1>Órdenes Retenidas (Apartados)</h1>
+    <p>Estas órdenes están en espera y no son visibles para los operarios. Active una orden para que aparezca en el dashboard de picking.</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="flash flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <table>
+        <thead>
+            <tr>
+                <th>Pedido #</th>
+                <th>Cliente</th>
+                <th>Fecha de Creación</th>
+                <th style="text-align: center;">Acción</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for orden in ordenes %}
+            <tr>
+                <td>{{ orden.numero_pedido }}</td>
+                <td>{{ orden.cliente_nombre }}</td>
+                <td>{{ orden.fecha_creacion | localtime }}</td>
+                <td style="text-align: center;">
+                    <form action="{{ url_for('activar_orden', orden_id=orden.id) }}" method="POST">
+                        <button type="submit" class="activate-btn">Activar para Picking</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="4" style="text-align: center; padding: 2em;">No hay órdenes retenidas en este momento.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

@@ -207,85 +207,87 @@
         {% endif %}
     {% endwith %}
 
-    <form action="{{ url_for('crear_lote') }}" method="POST">
-        <table>
-            <thead>
-                <tr>
-                    <th>Sel.</th>
-                    <th>Pedido #</th>
-                    <th>Cliente</th>
-                    <th>Estado</th>
-                    <th style="text-align: center;">Asignado a</th>
-                    <th style="text-align: center;">Acción</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for orden in ordenes %}
-                    <tr class="{{ 'orden-cancelada' if orden.estado == 'CANCELADA' else '' }}">
-                        <td data-label="Seleccionar" style="text-align: center;">
-                            {% if orden.estado == 'PENDIENTE' %}
-                                <input type="checkbox" name="orden_id" value="{{ orden.id }}">
-                            {% endif %}
-                        </td>
-                        <td data-label="Pedido #">{{ orden.numero_pedido }}</td>
-                        <td data-label="Cliente">{{ orden.cliente_nombre }}</td>
-                        <td data-label="Estado">
-                            <!-- CÓDIGO CORREGIDO -->
-                            <span class="estado estado-{{ orden.estado }}">{{ orden.estado.replace('_', ' ') }}</span>
-                        </td>
-                        <td data-label="Asignado a" style="text-align: center;">
-                            {% if orden.lote and orden.lote.operario %}
-                                <strong>{{ orden.lote.operario.username }}</strong>
-                            {% elif orden.estado == 'EN_PICKING' %}
-                                {% if current_user.role == 'operario' %}
-                                    <form action="{{ url_for('tomar_lote', lote_id=orden.lote_id) }}" method="POST" style="margin: 0;">
-                                        <button type="submit" class="action-button-take">Tomar Lote</button>
-                                    </form>
-                                {% else %}
-                                    <span style="color: #777; font-style: italic;">Sin Asignar</span>
-                                {% endif %}
-                            {% else %}
-                                <span style="color: #ccc;">--</span>
-                            {% endif %}
-                        </td>
-                        <td data-label="Acción" style="text-align: center;">
-                            {% if orden.estado == 'EN_PICKING' and orden.lote and (current_user.role == 'admin' or (orden.lote.operario and current_user.id == orden.lote.operario_id)) %}
-                                <a href="{{ url_for('detalle_lote', lote_id=orden.lote_id) }}" class="action-link action-link-picking">Continuar Picking</a>
-                            {% else %}
-                                <a href="{{ url_for('detalle_orden', orden_id=orden.id) }}" class="action-link">Ver Detalle</a>
-                            {% endif %}
-                        </td>
-                    </tr>
-                {% else %}
-                    <tr>
-                        <td colspan="6" style="text-align: center; padding: 2em;">
-                            No hay órdenes que coincidan con el filtro actual.
-                        </td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        
-        <!-- El botón solo debe aparecer si hay órdenes PENDIENTES para seleccionar -->
-        {% if ordenes | selectattr('estado', 'equalto', 'PENDIENTE') | list %}
-            
-            <!-- Mostramos este bloque SOLO si el usuario es admin y hay operarios -->
-            {% if current_user.role == 'admin' and operarios %}
-            <div class="asignacion-container">
-                <label for="operario_id">Asignar Lote a (Opcional):</label>
-                <select name="operario_id" id="operario_id">
-                    <option value="">-- Dejar sin asignar --</option>
-                    {% for operario in operarios %}
-                    <option value="{{ operario.id }}">{{ operario.username }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            {% endif %}
 
-            <button type="submit" class="submit-btn">Crear Lote de Picking con Órdenes Seleccionadas</button>
-        
+    <form action="{{ url_for('crear_lote') }}" method="POST" id="form-crear-lote">
+    
+    <table>
+        <thead>
+            <tr>
+                <th>Sel.</th>
+                <th>Pedido #</th>
+                <th>Cliente</th>
+                <th>Estado</th>
+                <th style="text-align: center;">Asignado a</th>
+                <th style="text-align: center;">Acción</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for orden in ordenes %}
+                <tr class="{{ 'orden-cancelada' if orden.estado == 'CANCELADA' else '' }}">
+                    <td data-label="Seleccionar" style="text-align: center;">
+                        {% if orden.estado == 'PENDIENTE' %}
+                            <!-- 2. El checkbox ahora usa el atributo 'form' para vincularse al formulario de abajo -->
+                            <input type="checkbox" name="orden_id" value="{{ orden.id }}" form="form-crear-lote">
+                        {% endif %}
+                    </td>
+                    <td data-label="Pedido #">{{ orden.numero_pedido }}</td>
+                    <td data-label="Cliente">{{ orden.cliente_nombre }}</td>
+                    <td data-label="Estado">
+                        <span class="estado estado-{{ orden.estado }}">{{ orden.estado.replace('_', ' ') }}</span>
+                    </td>
+                    <td data-label="Asignado a" style="text-align: center;">
+                        {% if orden.lote and orden.lote.operario %}
+                            <strong>{{ orden.lote.operario.username }}</strong>
+                        {% elif orden.estado == 'EN_PICKING' %}
+                            {% if current_user.role == 'operario' %}
+                                <form action="{{ url_for('tomar_lote', lote_id=orden.lote_id) }}" method="POST" style="margin: 0;">
+                                    <button type="submit" class="action-button-take">Tomar Lote</button>
+                                 </form>
+                            {% else %}
+                                <span style="color: #777; font-style: italic;">Sin Asignar</span>
+                            {% endif %}
+                        {% else %}
+                            <span style="color: #ccc;">--</span>
+                        {% endif %}
+                    </td>
+                    <td data-label="Acción" style="text-align: center;">
+                        <!-- 3. Los botones de acción ahora son formularios independientes y ya no están anidados -->
+                        {% if orden.estado == 'EN_PICKING' and orden.lote and (current_user.role == 'admin' or (orden.lote.operario and current_user.id == orden.lote.operario_id)) %}
+                            <a href="{{ url_for('detalle_lote', lote_id=orden.lote_id) }}" class="action-link action-link-picking">Continuar Picking</a>
+                        {% else %}
+                            <a href="{{ url_for('detalle_orden', orden_id=orden.id) }}" class="action-link">Ver Detalle</a>
+                        {% endif %}
+
+                        {% if current_user.role == 'admin' and orden.estado == 'PENDIENTE' %}
+                            <!-- El formulario de "Retener" ahora es independiente -->
+                            <form action="{{ url_for('retener_orden', orden_id=orden.id) }}" method="POST" style="display: inline; margin-left: 5px;" onsubmit="return confirm('¿Poner esta orden en retención (apartado)? Desaparecerá de esta lista.');">
+                                <button type="submit" class="action-button-take" style="background-color: #777;">Retener</button>
+                            </form>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="6" style="text-align: center; padding: 2em;">No hay órdenes que coincidan con el filtro actual.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <!-- El bloque de acciones para crear el lote ahora está DENTRO del formulario -->
+    {% if ordenes | selectattr('estado', 'equalto', 'PENDIENTE') | list %}
+        {% if current_user.role == 'admin' and operarios %}
+        <div class="asignacion-container">
+            <label for="operario_id">Asignar Lote a (Opcional):</label>
+            <select name="operario_id" id="operario_id">
+                <option value="">-- Dejar sin asignar --</option>
+                {% for operario in operarios %}
+                <option value="{{ operario.id }}">{{ operario.username }}</option>
+                {% endfor %}
+            </select>
+        </div>
         {% endif %}
-    </form>
+        <button type="submit" class="submit-btn">Crear Lote de Picking con Órdenes Seleccionadas</button>
+    {% endif %}
+</form>
 {% endblock %}
 
 <!-- En templates/dashboard.html -->
