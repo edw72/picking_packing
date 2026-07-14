@@ -1,4 +1,25 @@
 # 1. IMPORTACIONES
+import sys
+import os
+
+# Si estamos en Windows, intentamos añadir las rutas de GTK al DLL search path para WeasyPrint
+if sys.platform == 'win32':
+    gtk_paths = [
+        r"C:\Program Files\GTK3-Runtime Win64\bin",
+        r"C:\Program Files\GTK3-Runtime\bin",
+        r"C:\Program Files (x86)\GTK3-Runtime Win64\bin",
+        r"C:\Program Files (x86)\GTK3-Runtime\bin",
+        r"C:\msys64\mingw64\bin"
+    ]
+    for path in gtk_paths:
+        if os.path.exists(path):
+            try:
+                os.add_dll_directory(path)
+                os.environ['PATH'] = path + os.path.pathsep + os.environ.get('PATH', '')
+                break
+            except Exception:
+                pass
+
 from sqlalchemy.orm import joinedload
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -11,13 +32,11 @@ import pytz
 from functools import wraps
 from sqlalchemy import func
 from datetime import timedelta
-import os
 import json
 import qrcode
 import io
 from flask import send_file
 from flask_migrate import Migrate # Importar Migrate
-from flask_weasyprint import HTML, render_pdf
 from flask import abort # Asegúrate de importar abort al principio del archivo
 from sqlalchemy.orm import joinedload, subqueryload
 from sqlalchemy.exc import IntegrityError
@@ -1234,33 +1253,38 @@ def gestionar_rutas():
         flash(f'Hoja de Ruta #{nueva_ruta.id} ({tipo_entrega}) creada. Ahora añada las órdenes.', 'success')
         # Redirigimos al detalle para el siguiente paso lógico
         return redirect(url_for('detalle_ruta', ruta_id=nueva_ruta.id))
+    
 
-     # --- INICIO: NUEVA LÓGICA DE BÚSQUEDA Y PAGINACIÓN ---
+    # --- INICIO: LÓGICA DE FILTROS Y BÚSQUEDA MEJORADA ---
     page = request.args.get('page', 1, type=int)
     search_query = request.args.get('search', '').strip()
-    RUTAS_POR_PAGINA = 30 # Puedes ajustar este número
+    
+    # Nuevo parámetro de filtro, con 'INTERNA' como valor por defecto
+    tipo_filtro = request.args.get('tipo', 'INTERNA')
+    
+    RUTAS_POR_PAGINA = 30
 
-    # La consulta base
     query_base = db.select(HojaDeRuta).options(joinedload(HojaDeRuta.conductor))
 
-    # Si hay un término de búsqueda, modificamos la consulta
+    # 1. Aplicamos el filtro por tipo de entrega
+    if tipo_filtro in ['INTERNA', 'EXTERNA']:
+        query_base = query_base.where(HojaDeRuta.tipo_entrega == tipo_filtro)
+    # (Si se pasa un tipo inválido, no se filtra y se muestran todas)
+
+    # 2. Si hay un término de búsqueda, lo aplicamos ADEMÁS del filtro
     if search_query:
-        # Buscamos por ID de Ruta o por un número de pedido dentro de la ruta
         query_base = query_base.outerjoin(HojaDeRuta.ordenes).where(
             or_(
-                # Convertimos el ID de la ruta a texto para poder usar 'ilike'
                 func.cast(HojaDeRuta.id, db.String).ilike(f'%{search_query}%'),
                 Orden.numero_pedido.ilike(f'%{search_query}%')
             )
-        ).distinct() # Distinct es crucial para evitar duplicados si una ruta coincide por varias órdenes
+        ).distinct()
     
-    # Aplicamos el ordenamiento
     query_base = query_base.order_by(HojaDeRuta.fecha_creacion.desc())
 
-    # Usamos el paginador de Flask-SQLAlchemy
     pagination = db.paginate(query_base, page=page, per_page=RUTAS_POR_PAGINA, error_out=False)
     rutas = pagination.items
-    # --- FIN: NUEVA LÓGICA ---
+    # --- FIN: LÓGICA MEJORADA ---
 
     conductores = db.session.execute(db.select(User).filter_by(role='conductor').order_by(User.username)).scalars().all()
     
@@ -1268,8 +1292,9 @@ def gestionar_rutas():
         'gestionar_rutas.html', 
         rutas=rutas, 
         conductores=conductores,
-        pagination=pagination, # Pasamos el objeto de paginación a la plantilla
-        search_query=search_query # Pasamos la búsqueda para mantenerla en el campo de texto
+        pagination=pagination,
+        search_query=search_query,
+        tipo_filtro_actual=tipo_filtro # Pasamos el filtro actual a la plantilla
     )
 
 
@@ -1611,6 +1636,12 @@ def generar_pdf_etiquetas(orden_id):
     """
     Renderiza un template HTML y lo convierte en un PDF de etiquetas.
     """
+    try:
+        from flask_weasyprint import HTML, render_pdf
+    except Exception as e:
+        flash("Error: No se pudo generar el PDF. WeasyPrint requiere que las librerías GTK estén instaladas en el servidor. Instale GTK para habilitar la generación de PDF.", "error")
+        return redirect(url_for('detalle_orden', orden_id=orden_id))
+
     orden = Orden.query.get_or_404(orden_id)
     
     # Renderizamos el template HTML específico para el PDF

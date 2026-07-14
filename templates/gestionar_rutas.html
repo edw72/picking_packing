@@ -34,6 +34,29 @@
         background-color: #007bff; color: white; font-weight: bold;
         border-color: #007bff; z-index: 2;
     }
+
+    /* --- Nuevos Estilos para los Filtros --- */
+    .filtros-container {
+        margin-bottom: 1.5rem;
+        padding: 1rem;
+        background-color: #f0f0f0;
+        border-radius: 5px;
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+    }
+    .filtros-container a {
+        text-decoration: none;
+        padding: 8px 15px;
+        border-radius: 5px;
+        color: #007bff;
+        border: 1px solid #007bff;
+        font-weight: bold;
+    }
+    .filtros-container a.activo {
+        background-color: #007bff;
+        color: white;
+    }
 </style>
 {% endblock %}
 
@@ -108,11 +131,33 @@
         </div>
 
         <!-- === INICIO: Formulario de Búsqueda === -->
+        <!-- <form method="GET" class="search-form">
+            <input type="text" name="search" placeholder="Buscar por # de Ruta o # de Pedido..." value="{{ search_query or '' }}">
+            <button type="submit" class="submit-btn" style="width: auto;">Buscar</button>
+        </form> -->
+        <!-- === FIN: Formulario de Búsqueda === -->
+
+         <!-- Formulario de Búsqueda (se le añade el filtro actual como campo oculto) -->
         <form method="GET" class="search-form">
+            <input type="hidden" name="tipo" value="{{ tipo_filtro_actual }}">
             <input type="text" name="search" placeholder="Buscar por # de Ruta o # de Pedido..." value="{{ search_query or '' }}">
             <button type="submit" class="submit-btn" style="width: auto;">Buscar</button>
         </form>
-        <!-- === FIN: Formulario de Búsqueda === -->
+
+        <!-- === INICIO: NUEVOS BOTONES DE FILTRO === -->
+        <div class="filtros-container">
+            <strong>Filtrar por tipo:</strong>
+            <a href="{{ url_for('gestionar_rutas', tipo='INTERNA', search=search_query) }}"
+               class="{{ 'activo' if tipo_filtro_actual == 'INTERNA' }}">
+               Internas
+            </a>
+            <a href="{{ url_for('gestionar_rutas', tipo='EXTERNA', search=search_query) }}"
+               class="{{ 'activo' if tipo_filtro_actual == 'EXTERNA' }}">
+               Externas
+            </a>
+        </div>
+        <!-- === FIN: NUEVOS BOTONES DE FILTRO === -->
+
         <table>
             <thead>
                 <tr>
@@ -160,7 +205,7 @@
         </table>
 
         <!-- === INICIO: Controles de Paginación === -->
-        {% if pagination %}
+        <!-- {% if pagination %}
         <div class="pagination">
             <a href="{{ url_for('gestionar_rutas', page=pagination.prev_num, search=search_query) if pagination.has_prev else '#' }}"
                class="{{ 'disabled' if not pagination.has_prev }}">
@@ -174,8 +219,23 @@
                 Siguiente &raquo;
             </a>
         </div>
-        {% endif %}
+        {% endif %} -->
         <!-- === FIN: Controles de Paginación === -->
+
+       <!-- Controles de Paginación (actualizados para incluir el filtro) -->
+        {% if pagination %}
+        <div class="pagination">
+            <a href="{{ url_for('gestionar_rutas', page=pagination.prev_num, search=search_query, tipo=tipo_filtro_actual) if pagination.has_prev else '#' }}"
+               class="{{ 'disabled' if not pagination.has_prev }}">
+                &laquo; Anterior
+            </a>
+            <span>Página {{ pagination.page }} de {{ pagination.pages }}</span>
+            <a href="{{ url_for('gestionar_rutas', page=pagination.next_num, search=search_query, tipo=tipo_filtro_actual) if pagination.has_next else '#' }}"
+               class="{{ 'disabled' if not pagination.has_next }}">
+                Siguiente &raquo;
+            </a>
+        </div>
+        {% endif %} 
     </div>
 </div>
 {% endblock %}

@@ -59,7 +59,7 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // El script ahora es mucho más simple y robusto
+    // --- ELEMENTOS DEL DOM ---
     const scanInput = document.getElementById('scan-input-carga');
     const finalizarBtn = document.getElementById('finalizar-btn-carga');
     const totalBultos = {{ bultos|length }};
@@ -81,8 +81,57 @@ document.addEventListener('DOMContentLoaded', function() {
     const audioSuccess = new Audio("{{ url_for('static', filename='sounds/success.mp3') }}");
     const audioError = new Audio("{{ url_for('static', filename='sounds/error.mp3') }}");
 
+    // --- INICIO: LÓGICA DE DETECCIÓN DE ESCÁNER (SEGURIDAD) ---
+    let lastKeyTime = 0;
+    let isManualInput = false;
+    const SCAN_THRESHOLD = 40; // 40 milisegundos de margen entre pulsaciones
+
+    // 1. Bloqueo absoluto de copiar, pegar y arrastrar/soltar texto
+    scanInput.addEventListener('paste', function(e) {
+        e.preventDefault();
+        alert("La acción de pegar está deshabilitada para garantizar la verificación física por escáner.");
+    });
+
+    scanInput.addEventListener('drop', function(e) {
+        e.preventDefault();
+        alert("La acción de arrastrar texto está deshabilitada para garantizar la verificación física por escáner.");
+    });
+
+    // 2. Escuchamos las pulsaciones físicas para medir la velocidad de entrada
+    scanInput.addEventListener('keydown', function(e) {
+        // Ignoramos teclas de control que no escriben texto
+        if (e.key === 'Enter' || e.key === 'Shift' || e.key === 'Control' || e.key === 'Alt') {
+            return;
+        }
+        
+        const currentTime = Date.now();
+        // Si el tiempo entre esta tecla y la anterior es lento, se marca como entrada manual
+        if (lastKeyTime > 0 && (currentTime - lastKeyTime) > SCAN_THRESHOLD) {
+            isManualInput = true;
+        }
+        lastKeyTime = currentTime;
+    });
+    // --- FIN: LÓGICA DE DETECCIÓN DE ESCÁNER ---
+
+    // 3. Procesamos el cambio (cuando se escanea y el lector envía la señal final "Enter")
     scanInput.addEventListener('change', function() {
         const identificador = this.value.trim();
+
+        // --- VALIDACIÓN DE SEGURIDAD ---
+        // Si se detectó escritura humana lenta y el texto ingresado tiene más de un carácter
+        if (isManualInput && identificador.length > 1) {
+            alert("Entrada manual no permitida. Por favor, utilice el escáner físico.");
+            this.value = '';
+            isManualInput = false;
+            lastKeyTime = 0;
+            this.focus();
+            return; // Detiene el envío al servidor por completo
+        }
+
+        // Reseteamos las variables de velocidad para el próximo escaneo
+        isManualInput = false;
+        lastKeyTime = 0;
+
         if (!identificador) return;
 
         fetch("{{ url_for('api_escanear_bulto_carga', ruta_id=ruta.id) }}", {
@@ -114,6 +163,9 @@ document.addEventListener('DOMContentLoaded', function() {
         .finally(() => {
             this.value = '';
             this.focus();
+            // Doble aseguramiento de reseteo del detector
+            isManualInput = false;
+            lastKeyTime = 0;
         });
     });
 

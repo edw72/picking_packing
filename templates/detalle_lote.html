@@ -190,53 +190,69 @@ document.addEventListener('DOMContentLoaded', function() {
     const closeModalBtn = document.getElementById('modal-close');
     const incidenciaForm = document.getElementById('form-incidencia');
     
-    // --- INICIO: Implementación del "Guardia" de Envío ---
-    let isSubmitting = false; 
-    // --- FIN: Implementación del "Guardia" ---
+     // --- INICIO: LÓGICA DE ESCANEO UNIFICADA ---
+    let lastKeyTime = 0;
+    let isSubmitting = false;
+    const SCAN_THRESHOLD = 50; // Aumentamos un poco el umbral para más fiabilidad
 
-    // --- LÓGICA DE ESCANEO ---
-    scanForm.addEventListener('submit', function(event) {
-        event.preventDefault(); 
-        
-        // --- INICIO: Lógica del Guardia ---
-        // Si ya se está procesando un escaneo, no hacemos nada.
-        if (isSubmitting) {
-            return; 
+    // 1. Bloqueamos pegar y arrastrar
+    scanInput.addEventListener('paste', e => { e.preventDefault(); alert("Acción deshabilitada."); });
+    scanInput.addEventListener('drop', e => { e.preventDefault(); alert("Acción deshabilitada."); });
+
+    // 2. Escuchamos las pulsaciones de teclas
+    scanInput.addEventListener('input', function(e) {
+        const currentTime = Date.now();
+        // Si hay una pausa "humana" al escribir, reseteamos el tiempo
+        if ((currentTime - lastKeyTime) > SCAN_THRESHOLD) {
+            lastKeyTime = 0;
         }
-        // Bloqueamos nuevos envíos
-        isSubmitting = true;
-        scanBtn.disabled = true; // Deshabilitamos el botón visualmente
-        scanBtn.textContent = 'Procesando...';
-        // --- FIN: Lógica del Guardia ---
+    });
 
+    // 3. Lógica principal al enviar el formulario
+    scanForm.addEventListener('submit', function(event) {
+        event.preventDefault();
+        
+        // Si no se registró una secuencia rápida de teclas, es manual
+        if (lastKeyTime === 0 && scanInput.value.length > 1) {
+            alert("Entrada manual no permitida. Por favor, utilice el escáner.");
+            scanInput.value = '';
+            return;
+        }
+
+        if (isSubmitting) return;
+        isSubmitting = true;
+        scanBtn.disabled = true;
+        scanBtn.textContent = 'Procesando...';
+        
         const codigo = scanInput.value.trim();
+        
+        // Reseteamos el detector
+        lastKeyTime = 0;
+
         if (!codigo) {
-            // Si el campo está vacío, liberamos el guardia
             isSubmitting = false;
             scanBtn.disabled = false;
             scanBtn.textContent = 'Escanear';
             return;
         }
-        
+
         fetch("{{ url_for('api_escanear_item_lote', lote_id=lote.id) }}", {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ codigo_articulo: codigo }),
         }).then(res => res.json()).then(data => {
             if (data.success) { audioSuccess.play(); updateUI(data); showFeedback(data.message, 'success');
             } else { audioError.play(); showFeedback(data.message, 'error'); }
-        }).catch(err => { console.error(err); showFeedback('Error de conexión.', 'error');
-        }).finally(() => { 
-            scanInput.value = ''; 
+        }).catch(err => {
+            console.error(err); showFeedback('Error de conexión.', 'error');
+        }).finally(() => {
+            scanInput.value = '';
             scanInput.focus();
-            
-            // --- INICIO: Liberación del Guardia ---
-            // Cuando la petición termina (éxito o error), liberamos el formulario.
             isSubmitting = false;
             scanBtn.disabled = false;
             scanBtn.textContent = 'Escanear';
-            // --- FIN: Liberación del Guardia ---
         });
     });
+    // --- FIN: LÓGICA DE ESCANEO UNIFICADA ---
 
 
     // --- LÓGICA DE INCIDENCIAS ---

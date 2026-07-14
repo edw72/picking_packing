@@ -161,53 +161,44 @@ document.addEventListener('DOMContentLoaded', function() {
     document.body.addEventListener('keydown', unlockAudio, { once: true });
 
 
-    // --- Guardia de envío para el escaneo ---
+    // --- INICIO: LÓGICA DE ESCANEO UNIFICADA ---
+    let lastKeyTime = 0;
     let isSubmitting = false;
+    const SCAN_THRESHOLD = 50;
 
-    // --- LÓGICA DE ESCANEO PRINCIPAL ---
+    scanInput.addEventListener('paste', e => { e.preventDefault(); alert("Acción deshabilitada."); });
+    scanInput.addEventListener('drop', e => { e.preventDefault(); alert("Acción deshabilitada."); });
+
+    scanInput.addEventListener('input', function(e) {
+        const currentTime = Date.now();
+        if ((currentTime - lastKeyTime) > SCAN_THRESHOLD) {
+            lastKeyTime = 0;
+        }
+    });
+
     scanForm.addEventListener('submit', function(event) {
-        event.preventDefault(); 
+        event.preventDefault();
+        
+        if (lastKeyTime === 0 && scanInput.value.length > 1) {
+            alert("Entrada manual no permitida. Por favor, utilice el escáner.");
+            scanInput.value = '';
+            return;
+        }
+
         if (isSubmitting) return;
         isSubmitting = true;
         scanBtn.disabled = true;
         scanBtn.textContent = 'Procesando...';
         
         const codigo = scanInput.value.trim();
-        if (!codigo) {
-            isSubmitting = false;
-            scanBtn.disabled = false;
-            scanBtn.textContent = 'Escanear';
-            return;
-        }
+        lastKeyTime = 0;
 
-        fetch("{{ url_for('api_escanear_item_packing', orden_id=orden.id) }}", {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ codigo_articulo: codigo }),
-        })
-        .then(res => {
-            if (!res.ok) { return res.json().then(errData => Promise.reject(errData)); }
-            return res.json();
-        })
-        .then(data => {
-            if (data.success) {
-                if (audioIsUnlocked) audioSuccess.play();
-                updatePackingUI(data);
-                showPackingFeedback(data.message, 'success');
-            }
-        })
-        .catch(error => {
-            if (audioIsUnlocked) audioError.play();
-            showPackingFeedback(error.message || 'Ocurrió un error desconocido.', 'error');
-        })
-        .finally(() => {
-            scanInput.value = '';
-            scanInput.focus();
-            isSubmitting = false;
-            scanBtn.disabled = false;
-            scanBtn.textContent = 'Escanear';
-        });
+        if (!codigo) { /* ... */ }
+
+        fetch("{{ url_for('api_escanear_item_packing', orden_id=orden.id) }}", { /* ... */ })
+            .finally(() => { /* ... */ });
     });
+    // --- FIN: LÓGICA DE ESCANEO UNIFICADA ---
 
     // --- LÓGICA PARA BOTÓN "COMPLETAR" DEL ADMIN (CORREGIDA) ---
     document.querySelectorAll('.completar-btn').forEach(btn => {
