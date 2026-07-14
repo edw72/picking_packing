@@ -161,27 +161,42 @@ document.addEventListener('DOMContentLoaded', function() {
     document.body.addEventListener('keydown', unlockAudio, { once: true });
 
 
-    // --- INICIO: LÓGICA DE ESCANEO UNIFICADA ---
-    let lastKeyTime = 0;
-    let isSubmitting = false;
-    const SCAN_THRESHOLD = 50;
+     // --- INICIO: NUEVA LÓGICA DE DETECCIÓN DE ESCÁNER ROBUSTA ---
+    let keystrokeTimesPacking = [];
+    const SCAN_THRESHOLD_MS = 120;
 
     scanInput.addEventListener('paste', e => { e.preventDefault(); alert("Acción deshabilitada."); });
     scanInput.addEventListener('drop', e => { e.preventDefault(); alert("Acción deshabilitada."); });
 
-    scanInput.addEventListener('input', function(e) {
-        const currentTime = Date.now();
-        if ((currentTime - lastKeyTime) > SCAN_THRESHOLD) {
-            lastKeyTime = 0;
-        }
+    scanInput.addEventListener('input', function() {
+        keystrokeTimesPacking.push(Date.now());
     });
 
+    let isSubmitting = false;
     scanForm.addEventListener('submit', function(event) {
         event.preventDefault();
         
-        if (lastKeyTime === 0 && scanInput.value.length > 1) {
-            alert("Entrada manual no permitida. Por favor, utilice el escáner.");
+        const codigo = scanInput.value.trim();
+        let isManualInput = false;
+
+        if (codigo.length > 1) {
+            if (keystrokeTimesPacking.length < codigo.length) {
+                isManualInput = true;
+            } else {
+                for (let i = 1; i < keystrokeTimesPacking.length; i++) {
+                    const interval = keystrokeTimesPacking[i] - keystrokeTimesPacking[i - 1];
+                    if (interval > SCAN_THRESHOLD_MS) {
+                        isManualInput = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (isManualInput) {
+            alert("Entrada manual no permitida. Por favor, utilice el escáner físico.");
             scanInput.value = '';
+            keystrokeTimesPacking = [];
             return;
         }
 
@@ -190,15 +205,22 @@ document.addEventListener('DOMContentLoaded', function() {
         scanBtn.disabled = true;
         scanBtn.textContent = 'Procesando...';
         
-        const codigo = scanInput.value.trim();
-        lastKeyTime = 0;
+        keystrokeTimesPacking = [];
 
         if (!codigo) { /* ... */ }
 
         fetch("{{ url_for('api_escanear_item_packing', orden_id=orden.id) }}", { /* ... */ })
-            .finally(() => { /* ... */ });
+            .finally(() => {
+                // (Mantenemos la lógica de limpieza existente)
+                scanInput.value = '';
+                scanInput.focus();
+                isSubmitting = false;
+                scanBtn.disabled = false;
+                scanBtn.textContent = 'Escanear';
+                keystrokeTimesPacking = [];
+            });
     });
-    // --- FIN: LÓGICA DE ESCANEO UNIFICADA ---
+    // --- FIN: LÓGICA DE ESCANEO ---
 
     // --- LÓGICA PARA BOTÓN "COMPLETAR" DEL ADMIN (CORREGIDA) ---
     document.querySelectorAll('.completar-btn').forEach(btn => {

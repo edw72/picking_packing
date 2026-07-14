@@ -190,32 +190,48 @@ document.addEventListener('DOMContentLoaded', function() {
     const closeModalBtn = document.getElementById('modal-close');
     const incidenciaForm = document.getElementById('form-incidencia');
     
-     // --- INICIO: LÓGICA DE ESCANEO UNIFICADA ---
-    let lastKeyTime = 0;
-    let isSubmitting = false;
-    const SCAN_THRESHOLD = 50; // Aumentamos un poco el umbral para más fiabilidad
+     // --- INICIO: NUEVA LÓGICA DE DETECCIÓN DE ESCÁNER ROBUSTA ---
+    let keystrokeTimesLote = [];
+    const SCAN_THRESHOLD_MS = 120; // Umbral de velocidad humana vs escáner
 
-    // 1. Bloqueamos pegar y arrastrar
+    // 1. Bloqueo de pegar y arrastrar
     scanInput.addEventListener('paste', e => { e.preventDefault(); alert("Acción deshabilitada."); });
     scanInput.addEventListener('drop', e => { e.preventDefault(); alert("Acción deshabilitada."); });
 
-    // 2. Escuchamos las pulsaciones de teclas
-    scanInput.addEventListener('input', function(e) {
-        const currentTime = Date.now();
-        // Si hay una pausa "humana" al escribir, reseteamos el tiempo
-        if ((currentTime - lastKeyTime) > SCAN_THRESHOLD) {
-            lastKeyTime = 0;
-        }
+    // 2. Registrar el tiempo exacto de cada carácter ingresado
+    scanInput.addEventListener('input', function() {
+        keystrokeTimesLote.push(Date.now());
     });
 
-    // 3. Lógica principal al enviar el formulario
+    // 3. Lógica al enviar el formulario
+    let isSubmitting = false;
     scanForm.addEventListener('submit', function(event) {
         event.preventDefault();
         
-        // Si no se registró una secuencia rápida de teclas, es manual
-        if (lastKeyTime === 0 && scanInput.value.length > 1) {
-            alert("Entrada manual no permitida. Por favor, utilice el escáner.");
+        const codigo = scanInput.value.trim();
+        let isManualInput = false;
+
+        // Comprobación de velocidad física
+        if (codigo.length > 1) {
+            // Si la longitud del texto no coincide con las pulsaciones (delata autocompletados o desvíos)
+            if (keystrokeTimesLote.length < codigo.length) {
+                isManualInput = true;
+            } else {
+                // Comprobamos los intervalos entre teclas consecutivas
+                for (let i = 1; i < keystrokeTimesLote.length; i++) {
+                    const interval = keystrokeTimesLote[i] - keystrokeTimesLote[i - 1];
+                    if (interval > SCAN_THRESHOLD_MS) {
+                        isManualInput = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (isManualInput) {
+            alert("Entrada manual no permitida. Por favor, utilice el escáner físico.");
             scanInput.value = '';
+            keystrokeTimesLote = [];
             return;
         }
 
@@ -224,10 +240,8 @@ document.addEventListener('DOMContentLoaded', function() {
         scanBtn.disabled = true;
         scanBtn.textContent = 'Procesando...';
         
-        const codigo = scanInput.value.trim();
-        
         // Reseteamos el detector
-        lastKeyTime = 0;
+        keystrokeTimesLote = [];
 
         if (!codigo) {
             isSubmitting = false;
@@ -250,9 +264,10 @@ document.addEventListener('DOMContentLoaded', function() {
             isSubmitting = false;
             scanBtn.disabled = false;
             scanBtn.textContent = 'Escanear';
+            keystrokeTimesLote = []; // Limpieza extra en el reset
         });
     });
-    // --- FIN: LÓGICA DE ESCANEO UNIFICADA ---
+    // --- FIN: LÓGICA DE ESCANEO ---
 
 
     // --- LÓGICA DE INCIDENCIAS ---
