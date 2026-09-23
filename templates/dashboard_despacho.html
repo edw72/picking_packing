@@ -7,22 +7,36 @@
         .estado { font-weight: bold; padding: 0.2em 0.5em; border-radius: 4px; color: white; display: inline-block; }
         .estado-LISTO_PARA_DESPACHO { background-color: #337ab7; }
         table { width: 100%; border-collapse: collapse; margin-top: 1em; background-color: white; }
-        th, td { border: 1px solid #ddd; padding: 0.8em; text-align: left; }
+        th, td { border: 1px solid #ddd; padding: 0.8em; text-align: left; vertical-align: middle; }
         th { background-color: #f8f9fa; }
-        .action-link { padding: 8px 15px; font-size: 14px; font-weight: bold; color: white; background-color: #f0ad4e; border-radius: 5px; text-decoration: none; text-align: center; margin: 5px; }
+        .action-link { 
+            padding: 8px 12px; font-size: 14px; font-weight: bold; color: white; 
+            border-radius: 5px; text-decoration: none; text-align: center;
+            display: inline-block; margin-bottom: 5px; margin-right: 5px;
+        }
+        .assign-btn { background-color: #5cb85c; }
         .correct-btn { 
             background-color: #f0ad4e; 
             border: none;
             cursor: pointer;
             font-family: inherit;
         }
+        /* --- Nuevo estilo para el botón de entrega directa --- */
+        .direct-delivery-btn {
+            background-color: #007bff;
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .direct-delivery-btn:hover { background-color: #0056b3; }
+        
         .navegacion-modulos { margin-bottom: 1.5em; padding: 1em; background-color: #e9ecef; border-radius: 5px; }
     </style>
 {% endblock %}
 
 {% block content %}
     <h1>Órdenes en Espera de Ruta</h1>
-    <p>Estas órdenes están empacadas y listas. Asigne un destino para que puedan ser añadidas a una Hoja de Ruta.</p>
+    <p>Estas órdenes están empacadas y listas. Asigne un destino para ruta o realice una entrega directa en ventanilla.</p>
 
     <div class="navegacion-modulos" style="margin-bottom: 2rem;">
         <strong>Módulos:</strong>
@@ -47,8 +61,8 @@
             <tr>
                 <th>Pedido #</th>
                 <th>Cliente</th>
-                <th>Destino Asignado</th> <!-- Nueva Columna -->
-                <th>Acción</th>
+                <th>Destino Asignado</th>
+                <th>Acciones</th>
             </tr>
         </thead>
         <tbody>
@@ -57,7 +71,6 @@
                 <td>{{ orden.numero_pedido }}</td>
                 <td>{{ orden.cliente_nombre }}</td>
                 <td>
-                    <!-- Mostramos el destino si existe -->
                     {% if orden.destino %}
                         <strong>{{ orden.destino.nombre }}</strong>
                     {% else %}
@@ -65,23 +78,52 @@
                     {% endif %}
                 </td>
                 <td>
-                    <!-- El enlace ahora apunta a la nueva página -->
-                    <a href="{{ url_for('asignar_destino', orden_id=orden.id) }}" class="action-link">
+                    <!-- Botón para Asignar Destino (Ruta/Encomienda) -->
+                    <a href="{{ url_for('asignar_destino', orden_id=orden.id) }}" class="action-link assign-btn">
                         {% if orden.destino %}Editar Destino{% else %}Asignar Destino{% endif %}
                     </a>
-                    <!-- === INICIO: NUEVO BOTÓN PARA CORREGIR EMPAQUE === -->
+                    
+                    <!-- === INICIO: NUEVO FORMULARIO DE ENTREGA DIRECTA === -->
+                    <form action="{{ url_for('entrega_ventanilla_orden', orden_id=orden.id) }}" method="POST" style="display: inline;" 
+                          onsubmit="return confirmarEntregaVentanilla(this, '{{ orden.numero_pedido }}');">
+                        <input type="hidden" name="nombre_recibe" class="nombre-recibe-input">
+                        <button type="submit" class="action-link direct-delivery-btn">Entrega Ventanilla</button>
+                    </form>
+                    <!-- === FIN: NUEVO FORMULARIO === -->
+
+                    <!-- Botón para Corregir Empaque -->
                     <form action="{{ url_for('corregir_empaque_orden', orden_id=orden.id) }}" method="POST" style="display: inline;" 
                           onsubmit="return confirm('¿Está seguro de que desea corregir el empaque? Se borrarán las etiquetas existentes y deberá finalizar el packing de nuevo.');">
                         <button type="submit" class="action-link correct-btn">Corregir Empaque</button>
                     </form>
-                    <!-- === FIN: NUEVO BOTÓN === -->
                 </td>
             </tr>
             {% else %}
             <tr>
-                <td colspan="4" style="text-align: center; padding: 2em;">¡Excelente! No hay órdenes listas para despacho en este momento.</td>
+                <td colspan="4" style="text-align: center; padding: 2em;">No hay órdenes listas para despacho en este momento.</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Función interactiva de confirmación y captura de nombre opcional
+    function confirmarEntregaVentanilla(formElement, numeroPedido) {
+        const nombre = prompt(`¿Confirmar entrega directa en ventanilla para la orden #${numeroPedido}?\n\n(Opcional) Ingrese el nombre de la persona que recibe:`);
+        
+        // 1. Si el usuario hace clic en "Cancelar", detenemos la entrega por seguridad
+        if (nombre === null) {
+            return false;
+        }
+        
+        // 2. Si el usuario hace clic en "Aceptar", limpiamos los espacios en blanco
+        const nombreTrimmed = nombre.trim();
+        
+        // 3. Asignamos el valor (que puede estar vacío) y permitimos el envío
+        formElement.querySelector('.nombre-recibe-input').value = nombreTrimmed;
+        return true;
+    }
+</script>
 {% endblock %}

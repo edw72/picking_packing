@@ -2119,6 +2119,41 @@ def api_escanear_bulto_carga(ruta_id):
     })
     
     
+# En app.py, añade esta nueva ruta
+
+@app.route('/orden/<int:orden_id>/entrega-ventanilla', methods=['POST'])
+@login_required
+@logistica_required
+def entrega_ventanilla_orden(orden_id):
+    orden = db.get_or_404(Orden, orden_id)
+
+    # --- Verificación de Seguridad ---
+    if orden.estado != 'LISTO_PARA_DESPACHO':
+        flash(f'Error: La orden #{orden.numero_pedido} no está lista para despacho.', 'error')
+        return redirect(url_for('dashboard_despacho'))
+
+    # Obtener el nombre (ahora opcional)
+    nombre_recibe = request.form.get('nombre_recibe', '').strip()
+
+    # --- Actualización de la Orden (Lógica Flexible) ---
+    orden.estado = 'ENTREGADO'
+    orden.fecha_entrega_final = datetime.datetime.utcnow()
+    
+    # Si se proporcionó un nombre, lo anotamos; de lo contrario, guardamos un texto estándar
+    if nombre_recibe:
+        orden.nota_entrega = f"Retirado en bodega por: {nombre_recibe}"
+    else:
+        orden.nota_entrega = "Retirado en bodega"
+    
+    # Marcar bultos como verificados de despacho para consistencia del sistema
+    for bulto in orden.bultos:
+        bulto.verificado_despacho = True
+
+    db.session.commit()
+    
+    flash(f'¡La orden #{orden.numero_pedido} ha sido entregada con éxito en ventanilla!', 'success')
+    return redirect(url_for('dashboard_despacho'))
+
 
     
 @app.route('/ruta/<int:ruta_id>/confirmar-salida', methods=['POST'])
