@@ -134,7 +134,6 @@
 {% endblock %}
 
 {% block scripts %}
-<!-- El bloque de JavaScript no necesita ningún cambio funcional. -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
 
@@ -160,29 +159,42 @@ document.addEventListener('DOMContentLoaded', function() {
     document.body.addEventListener('click', unlockAudio, { once: true });
     document.body.addEventListener('keydown', unlockAudio, { once: true });
 
-
-     // --- INICIO: NUEVA LÓGICA DE DETECCIÓN DE ESCÁNER ROBUSTA ---
+    // --- INICIO: NUEVA LÓGICA DE DETECCIÓN DE ESCÁNER ROBUSTA ---
     let keystrokeTimesPacking = [];
-    const SCAN_THRESHOLD_MS = 120;
+    const SCAN_THRESHOLD_MS = 120; // 120ms máximo permitido entre caracteres
 
-    scanInput.addEventListener('paste', e => { e.preventDefault(); alert("Acción deshabilitada."); });
-    scanInput.addEventListener('drop', e => { e.preventDefault(); alert("Acción deshabilitada."); });
+    // 1. Bloqueo de pegar y arrastrar
+    scanInput.addEventListener('paste', e => { 
+        e.preventDefault(); 
+        alert("La acción de pegar está deshabilitada para garantizar la verificación física por escáner."); 
+    });
+    scanInput.addEventListener('drop', e => { 
+        e.preventDefault(); 
+        alert("La acción de arrastrar texto está deshabilitada para garantizar la verificación física por escáner."); 
+    });
 
+    // 2. Registrar el tiempo exacto de cada pulsación
     scanInput.addEventListener('input', function() {
         keystrokeTimesPacking.push(Date.now());
     });
 
+    // 3. Guardia de envío para el escaneo
     let isSubmitting = false;
+
+    // --- LÓGICA DE ESCANEO PRINCIPAL ---
     scanForm.addEventListener('submit', function(event) {
-        event.preventDefault();
+        event.preventDefault(); 
         
         const codigo = scanInput.value.trim();
         let isManualInput = false;
 
+        // Comprobación de velocidad física
         if (codigo.length > 1) {
+            // Si la longitud del texto no coincide con las pulsaciones registradas (autocompletado)
             if (keystrokeTimesPacking.length < codigo.length) {
                 isManualInput = true;
             } else {
+                // Comprobamos los intervalos entre teclas consecutivas
                 for (let i = 1; i < keystrokeTimesPacking.length; i++) {
                     const interval = keystrokeTimesPacking[i] - keystrokeTimesPacking[i - 1];
                     if (interval > SCAN_THRESHOLD_MS) {
@@ -205,24 +217,49 @@ document.addEventListener('DOMContentLoaded', function() {
         scanBtn.disabled = true;
         scanBtn.textContent = 'Procesando...';
         
+        // Reseteamos el detector para el próximo escaneo
         keystrokeTimesPacking = [];
+        
+        if (!codigo) {
+            isSubmitting = false;
+            scanBtn.disabled = false;
+            scanBtn.textContent = 'Escanear';
+            return;
+        }
 
-        if (!codigo) { /* ... */ }
-
-        fetch("{{ url_for('api_escanear_item_packing', orden_id=orden.id) }}", { /* ... */ })
-            .finally(() => {
-                // (Mantenemos la lógica de limpieza existente)
-                scanInput.value = '';
-                scanInput.focus();
-                isSubmitting = false;
-                scanBtn.disabled = false;
-                scanBtn.textContent = 'Escanear';
-                keystrokeTimesPacking = [];
-            });
+        // --- ENVIAR DATOS DE FORMA SEGURA AL SERVIDOR ---
+        fetch("{{ url_for('api_escanear_item_packing', orden_id=orden.id) }}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ codigo_articulo: codigo }),
+        })
+        .then(res => {
+            if (!res.ok) { return res.json().then(errData => Promise.reject(errData)); }
+            return res.json();
+        })
+        .then(data => {
+            if (data.success) {
+                if (audioIsUnlocked) audioSuccess.play().catch(e => {});
+                updatePackingUI(data);
+                showPackingFeedback(data.message, 'success');
+            }
+        })
+        .catch(error => {
+            if (audioIsUnlocked) audioError.play().catch(e => {});
+            showPackingFeedback(error.message || 'Ocurrió un error desconocido.', 'error');
+        })
+        .finally(() => {
+            scanInput.value = '';
+            scanInput.focus();
+            isSubmitting = false;
+            scanBtn.disabled = false;
+            scanBtn.textContent = 'Escanear';
+            keystrokeTimesPacking = []; // Limpieza extra en el reset
+        });
     });
     // --- FIN: LÓGICA DE ESCANEO ---
 
-    // --- LÓGICA PARA BOTÓN "COMPLETAR" DEL ADMIN (CORREGIDA) ---
+    // --- LÓGICA PARA BOTÓN "COMPLETAR" DEL ADMIN ---
     document.querySelectorAll('.completar-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const itemId = this.dataset.itemId;
@@ -233,13 +270,11 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    // CORRECCIÓN: Usamos la variable 'audioIsUnlocked' que sí existe
-                    if (audioIsUnlocked) audioSuccess.play();
+                    if (audioIsUnlocked) audioSuccess.play().catch(e => {});
                     updatePackingUI(data);
                     showPackingFeedback(data.message, 'success');
                 } else {
-                    // CORRECCIÓN: Usamos la variable 'audioIsUnlocked' que sí existe
-                    if (audioIsUnlocked) audioError.play();
+                    if (audioIsUnlocked) audioError.play().catch(e => {});
                     showPackingFeedback(data.message || 'Error al completar', 'error');
                 }
             }).catch(err => {
@@ -312,7 +347,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const addLoteBtn = document.getElementById('add-lote-btn');
     const lotesContainer = document.getElementById('lotes-container');
     
-    if (addLoteBtn) { // Verificamos que el botón exista antes de añadir el listener
+    if (addLoteBtn) {
         addLoteBtn.addEventListener('click', function() {
             const newRow = document.createElement('div');
             newRow.className = 'lote-input-row form-group';
@@ -334,26 +369,6 @@ document.addEventListener('DOMContentLoaded', function() {
             lotesContainer.appendChild(newRow);
         });
     }
-
-    // --- INICIO: NUEVO BLOQUE ANTI-PEGADO Y ANTI-ARRASTRE ---
-    const scanInputData = document.getElementById('scan-input-packing'); // Cambia esto en cada archivo
-
-    if (scanInputData) {
-        // Función que se ejecutará para ambos eventos
-        const blockAction = function(event) {
-            // Previene la acción por defecto (pegar o soltar)
-            event.preventDefault();
-            // Muestra una alerta unificada
-            alert("Esta acción está deshabilitada para garantizar la verificación por escáner.");
-        };
-
-        // Escuchamos el evento de pegar
-        scanInputData.addEventListener('paste', blockAction);
-
-        // Escuchamos el evento de soltar
-        scanInputData.addEventListener('drop', blockAction);
-    }
-    // --- FIN: NUEVO BLOQUE ---```
 });
 </script>
 {% endblock %}
