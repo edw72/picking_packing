@@ -5,10 +5,11 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "type": "editor-browser",
+            "type": "chrome",
             "request": "launch",
-            "name": "Open detalle_packing.html",
-            "url": "file:///c%3A/app_picking_army/templates/detalle_packing.html"
+            "name": "abrir en chrome",
+            "url": "http://localhost:5000",
+            "webRoot": "${workspaceFolder}"
         }
     ]
 }

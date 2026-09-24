@@ -217,10 +217,10 @@
                             {% endif %}
                             
                             <!-- El lápiz de edición rápida para admins y operarios de logística -->
-                            {% if current_user.role in ['admin', 'operario'] %}
+                            {% if current_user.role in ['admin'] %}
                                 <form action="{{ url_for('editar_nota_bodega', orden_id=orden.id) }}" method="POST" style="display: inline; margin-left: 5px;" onsubmit="return editarNotaBodega(this, '{{ orden.numero_pedido }}');">
                                     <input type="hidden" name="nota_bodega" class="nota-bodega-input">
-                                    <button type="submit" style="background: none; border: none; cursor: pointer; font-size: 1.1rem; padding: 0;" title="Editar indicación de bodega">✏️</button>
+                                    <button type="submit" style="background: none; border: none; cursor: pointer; font-size: 1.1rem; padding: 0;" title="Editar indicación de bodega">➕</button>
                                 </form>
                             {% endif %}
                         </td>
