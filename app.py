@@ -909,21 +909,35 @@ def detalle_packing(orden_id):
     return render_template('detalle_packing.html', orden=orden)
 
 
-# En app.py, esta DEBE ser tu nueva función finalizar_packing
+# En app.py, reemplaza la función finalizar_packing completa por esta:
 
 @app.route('/packing/<int:orden_id>/finalizar', methods=['POST'])
 @login_required
-@logistica_required # Asegúrate de usar el decorador correcto
 def finalizar_packing(orden_id):
     orden = db.get_or_404(Orden, orden_id)
     
-    ### --- INICIO: CAPA 1 - Barrera Lógica --- ###
-    # Si la orden ya fue procesada, no hacemos nada más.
+    # Capa 1: Barrera de seguridad lógica
     if orden.estado != 'EMPACADO':
         flash(f'La orden #{orden.numero_pedido} ya ha sido procesada y no se puede finalizar de nuevo.', 'warning')
         return redirect(url_for('dashboard_packing'))
-    ### --- FIN: CAPA 1 --- ###
 
+    # --- INICIO: NUEVA LÓGICA DE DETECCIÓN DE TIPO DE DESPACHO ---
+    tipo_despacho = request.form.get('tipo_despacho', 'ENVIO')
+
+    if tipo_despacho == 'VENTANILLA':
+        # Para retiro directo en ventanilla, NO se crean bultos físicos ni etiquetas
+        orden.estado = 'LISTO_PARA_DESPACHO'
+        orden.fecha_fin_packing = datetime.datetime.utcnow()
+        orden.packer_id = current_user.id
+        
+        db.session.commit()
+        session.pop(f'packing_{orden_id}', None) # Limpiamos sesión
+        
+        flash(f'Packing finalizado para la orden #{orden.numero_pedido}. ¡Lista para retiro directo en Despacho!', 'success')
+        return redirect(url_for('dashboard_despacho')) # Redirección directa a Despacho
+    # --- FIN: NUEVA LÓGICA ---
+
+    # --- LÓGICA HABITUAL PARA ENVÍOS (CREACIÓN DE BULTOS) ---
     try:
         num_cajas = int(request.form.get('cantidad_cajas', 0))
         num_bolsas = int(request.form.get('cantidad_bolsas', 0))
@@ -937,7 +951,6 @@ def finalizar_packing(orden_id):
         flash('Debe especificar al menos un bulto (caja, bolsa, paquete o lote).', 'error')
         return redirect(url_for('detalle_packing', orden_id=orden_id))
 
-    ### --- INICIO: CAPA 2 - Red de Seguridad (try...except) --- ###
     try:
         bulto_counter = 1
         # Bucle para Cajas
@@ -963,16 +976,15 @@ def finalizar_packing(orden_id):
         orden.packer_id = current_user.id
         
         db.session.commit()
+        session.pop(f'packing_{orden_id}', None) # Limpiamos sesión
         
         flash(f'Orden #{orden.numero_pedido} finalizada. Se generaron {bulto_counter - 1} etiquetas.', 'success')
         return redirect(url_for('imprimir_etiquetas', orden_id=orden.id))
 
     except IntegrityError:
-        # Si ocurre un error de duplicado, deshacemos todo y mostramos un mensaje
         db.session.rollback()
         flash('Error: Hubo un problema al crear los bultos. Es posible que esta orden ya haya sido procesada. Por favor, inténtelo de nuevo.', 'error')
         return redirect(url_for('detalle_packing', orden_id=orden_id))
-    ### --- FIN: CAPA 2 --- ###
     
 @app.route('/orden/<int:orden_id>/corregir-empaque', methods=['POST'])
 @login_required

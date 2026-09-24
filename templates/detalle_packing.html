@@ -4,7 +4,7 @@
 
 {% block styles %}
 <style>
-    /* --- Estilos Base (sin cambios) --- */
+    /* --- Estilos Base --- */
     .container { max-width: 900px; margin: 2em auto; background: white; padding: 2em; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
     h1, h2 { border-bottom: 2px solid #eee; padding-bottom: 0.5em; }
     .back-link { display: inline-block; margin-bottom: 1rem; color: #337ab7; text-decoration: none; }
@@ -47,13 +47,11 @@
 
     <h1>Verificación de Packing para Pedido #{{ orden.numero_pedido }}</h1>
     
-    <!-- === INICIO: BLOQUE RESTAURADO === -->
     <form id="scan-form-packing" class="scan-form">
         <input type="text" id="scan-input-packing" class="scan-input" placeholder="Escanear artículo para verificar..." autofocus autocomplete="off">
         <button type="submit" class="scan-btn">Escanear</button>
     </form>
     <div id="scan-feedback-packing" class="scan-feedback"></div>
-    <!-- === FIN: BLOQUE RESTAURADO === -->
 
     <div class="view-options">
         <label>
@@ -98,36 +96,50 @@
         </tbody>
     </table>
     
+    <!-- === SECCIÓN DE FINALIZACIÓN CON SELECTOR DINÁMICO === -->
     <div id="packing-finalization-section">
         <h2 style="text-align:center; color:#28a745;">¡Verificación Completa!</h2>
-        <p style="text-align:center;">Registra cómo se empacaron los productos para generar las etiquetas.</p>
+        <p style="text-align:center;">Registra cómo se despachará este pedido para finalizar el packing.</p>
+        
         <form action="{{ url_for('finalizar_packing', orden_id=orden.id) }}" method="POST">
-             <div class="bultos-form-grid">
-                <div class="form-group">
-                    <label for="cantidad_cajas">Nº de Cajas</label>
-                    <input type="number" name="cantidad_cajas" value="0" min="0">
-                </div>
-                 <div class="form-group">
-                    <label for="cantidad_bolsas">Nº de Bolsas</label>
-                    <input type="number" name="cantidad_bolsas" value="0" min="0">
-                </div>
-                 <div class="form-group">
-                    <label for="cantidad_paquetes">Nº de Paquetes</label>
-                    <input type="number" name="cantidad_paquetes" value="0" min="0">
-                </div>
-            </div>
+             
+             <!-- === NUEVO: Selector de tipo de despacho === -->
+             <div class="form-group" style="margin-bottom: 1.5rem;">
+                 <label for="tipo_despacho" style="font-weight: bold; display: block; margin-bottom: 0.5rem;">Tipo de Despacho</label>
+                 <select name="tipo_despacho" id="tipo_despacho" required style="width: 100%; padding: 10px; font-size: 1.1rem; border-radius: 5px; border: 1px solid #ccc;">
+                     <option value="ENVIO" selected>Envío (Por Ruta o Encomienda)</option>
+                     <option value="VENTANILLA">Retiro Directo en Ventanilla (No requiere etiquetas)</option>
+                 </select>
+             </div>
 
-            <hr>
-            <!-- --- Nueva sección para Lotes --- -->
-            <div class="lotes-section">
-                <h4>Empaques por Lote</h4>
-                <div id="lotes-container">
-                    <!-- Los inputs de lote se añadirán aquí dinámicamente -->
+             <!-- Bloque envoltorio para ocultar/mostrar campos de bultos -->
+             <div id="seccion-bultos-empaque">
+                 <div class="bultos-form-grid">
+                    <div class="form-group">
+                        <label for="cantidad_cajas">Nº de Cajas</label>
+                        <input type="number" id="cantidad_cajas" name="cantidad_cajas" value="0" min="0">
+                    </div>
+                     <div class="form-group">
+                        <label for="cantidad_bolsas">Nº de Bolsas</label>
+                        <input type="number" id="cantidad_bolsas" name="cantidad_bolsas" value="0" min="0">
+                    </div>
+                     <div class="form-group">
+                        <label for="cantidad_paquetes">Nº de Paquetes</label>
+                        <input type="number" id="cantidad_paquetes" name="cantidad_paquetes" value="0" min="0">
+                    </div>
                 </div>
-                <button type="button" id="add-lote-btn" class="add-lote-btn">Añadir Lote</button>
-            </div>
+
+                <hr>
+                <div class="lotes-section">
+                    <h4>Empaques por Lote</h4>
+                    <div id="lotes-container">
+                        <!-- Los inputs de lote se añadirán aquí dinámicamente -->
+                    </div>
+                    <button type="button" id="add-lote-btn" class="add-lote-btn">Añadir Lote</button>
+                </div>
+             </div>
             
-            <button type="submit" class="finalizar-btn">Generar Etiquetas y Finalizar</button>
+            <button id="finalizar-btn-packing" type="submit" class="finalizar-btn">Generar Etiquetas y Finalizar</button>
         </form>
     </div>
 </div>
@@ -136,7 +148,6 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-
     // --- SECCIÓN DE ELEMENTOS GLOBALES ---
     const scanForm = document.getElementById('scan-form-packing');
     const scanInput = document.getElementById('scan-input-packing');
@@ -144,11 +155,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const feedbackDiv = document.getElementById('scan-feedback-packing');
     const toggleOcultar = document.getElementById('toggle-ocultar-completados');
     const finalizationSection = document.getElementById('packing-finalization-section');
+    
+    // Nuevas constantes para el selector dinámico
+    const tipoDespachoSelect = document.getElementById('tipo_despacho');
+    const seccionBultosEmpaque = document.getElementById('seccion-bultos-empaque');
+    const finalizarBtnPacking = document.getElementById('finalizar-btn-packing');
+
     const audioSuccess = new Audio("{{ url_for('static', filename='sounds/success.mp3') }}");
     const audioError = new Audio("{{ url_for('static', filename='sounds/error.mp3') }}");
     
-    // --- LÓGICA DE DESBLOQUEO DE AUDIO ---
-    // Esta lógica asegura que el audio funcione después de la primera interacción del usuario.
     let audioIsUnlocked = false;
     function unlockAudio() {
         if (audioIsUnlocked) return;
@@ -159,11 +174,10 @@ document.addEventListener('DOMContentLoaded', function() {
     document.body.addEventListener('click', unlockAudio, { once: true });
     document.body.addEventListener('keydown', unlockAudio, { once: true });
 
-    // --- INICIO: NUEVA LÓGICA DE DETECCIÓN DE ESCÁNER ROBUSTA ---
+    // --- LÓGICA DE DETECCIÓN DE ESCÁNER ROBUSTA ---
     let keystrokeTimesPacking = [];
-    const SCAN_THRESHOLD_MS = 120; // 120ms máximo permitido entre caracteres
+    const SCAN_THRESHOLD_MS = 120;
 
-    // 1. Bloqueo de pegar y arrastrar
     scanInput.addEventListener('paste', e => { 
         e.preventDefault(); 
         alert("La acción de pegar está deshabilitada para garantizar la verificación física por escáner."); 
@@ -173,12 +187,10 @@ document.addEventListener('DOMContentLoaded', function() {
         alert("La acción de arrastrar texto está deshabilitada para garantizar la verificación física por escáner."); 
     });
 
-    // 2. Registrar el tiempo exacto de cada pulsación
     scanInput.addEventListener('input', function() {
         keystrokeTimesPacking.push(Date.now());
     });
 
-    // 3. Guardia de envío para el escaneo
     let isSubmitting = false;
 
     // --- LÓGICA DE ESCANEO PRINCIPAL ---
@@ -188,13 +200,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const codigo = scanInput.value.trim();
         let isManualInput = false;
 
-        // Comprobación de velocidad física
         if (codigo.length > 1) {
-            // Si la longitud del texto no coincide con las pulsaciones registradas (autocompletado)
             if (keystrokeTimesPacking.length < codigo.length) {
                 isManualInput = true;
             } else {
-                // Comprobamos los intervalos entre teclas consecutivas
                 for (let i = 1; i < keystrokeTimesPacking.length; i++) {
                     const interval = keystrokeTimesPacking[i] - keystrokeTimesPacking[i - 1];
                     if (interval > SCAN_THRESHOLD_MS) {
@@ -217,7 +226,6 @@ document.addEventListener('DOMContentLoaded', function() {
         scanBtn.disabled = true;
         scanBtn.textContent = 'Procesando...';
         
-        // Reseteamos el detector para el próximo escaneo
         keystrokeTimesPacking = [];
         
         if (!codigo) {
@@ -227,7 +235,6 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // --- ENVIAR DATOS DE FORMA SEGURA AL SERVIDOR ---
         fetch("{{ url_for('api_escanear_item_packing', orden_id=orden.id) }}", {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -254,10 +261,38 @@ document.addEventListener('DOMContentLoaded', function() {
             isSubmitting = false;
             scanBtn.disabled = false;
             scanBtn.textContent = 'Escanear';
-            keystrokeTimesPacking = []; // Limpieza extra en el reset
+            keystrokeTimesPacking = [];
         });
     });
-    // --- FIN: LÓGICA DE ESCANEO ---
+
+    // --- ESCUCHADOR DINÁMICO PARA EL SELECTOR DE DESPACHO ---
+    if (tipoDespachoSelect) {
+        tipoDespachoSelect.addEventListener('change', function() {
+            if (this.value === 'VENTANILLA') {
+                // Ocultamos todos los campos de empaque
+                seccionBultosEmpaque.style.display = 'none';
+                
+                // Quitamos el required de los inputs dinámicos de lote si existieran
+                document.querySelectorAll('#lotes-container input').forEach(input => {
+                    input.required = false;
+                });
+
+                // Cambiamos el texto del botón final
+                finalizarBtnPacking.textContent = 'Finalizar Packing para Ventanilla';
+            } else {
+                // Mostramos de nuevo los campos de empaque
+                seccionBultosEmpaque.style.display = 'block';
+
+                // Devolvemos el required a los lotes agregados
+                document.querySelectorAll('#lotes-container input').forEach(input => {
+                    input.required = true;
+                });
+
+                // Restauramos el texto original del botón
+                finalizarBtnPacking.textContent = 'Generar Etiquetas y Finalizar';
+            }
+        });
+    }
 
     // --- LÓGICA PARA BOTÓN "COMPLETAR" DEL ADMIN ---
     document.querySelectorAll('.completar-btn').forEach(btn => {
@@ -356,7 +391,10 @@ document.addEventListener('DOMContentLoaded', function() {
             input.name = 'lote_cantidades';
             input.placeholder = 'Cantidad de unidades en este lote';
             input.min = '1';
-            input.required = true;
+            
+            // Solo lo hacemos requerido si no estamos en modo ventanilla
+            input.required = (tipoDespachoSelect.value !== 'VENTANILLA');
+            
             const removeBtn = document.createElement('button');
             removeBtn.type = 'button';
             removeBtn.className = 'remove-lote-btn';
