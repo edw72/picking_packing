@@ -822,10 +822,14 @@ def crear_orden_desde_factura():
 
     try:
         # 4. Crear la orden principal
+        # === MODIFICACIÓN: Extraer la nota de bodega opcional del JSON ===
+        nota_bodega = data.get('nota_bodega', '').strip()
+
         nueva_orden = Orden(
             numero_pedido=data['pedido'],
             cliente_nombre=data['cliente'].get('nombre', 'N/A'),
-            cliente_direccion=data['cliente'].get('direccion', 'N/A')
+            cliente_direccion=data['cliente'].get('direccion', 'N/A'),
+            nota_bodega=nota_bodega if nota_bodega else None # <-- AÑADIDO
         )
         db.session.add(nueva_orden)
         db.session.flush()
@@ -2475,6 +2479,22 @@ def editar_gasto(gasto_id):
             flash('El monto ingresado no es un número válido.', 'error')
             
     return render_template('editar_movimiento.html', movimiento=gasto, tipo='Gasto')
+
+# En app.py, añade esta nueva ruta
+
+@app.route('/orden/<int:orden_id>/editar-nota-bodega', methods=['POST'])
+@login_required
+@logistica_required # Tanto admins como operarios pueden añadir notas operativas
+def editar_nota_bodega(orden_id):
+    orden = db.get_or_404(Orden, orden_id)
+    nueva_nota = request.form.get('nota_bodega', '').strip()
+    
+    # Guardamos la nota (si está vacía, se almacena como None para que se limpie de la vista)
+    orden.nota_bodega = nueva_nota if nueva_nota else None
+    db.session.commit()
+    
+    flash(f'Indicación de bodega para la orden #{orden.numero_pedido} actualizada.', 'success')
+    return redirect(url_for('dashboard'))    
 
 @app.route('/ordenes-retenidas')
 @login_required

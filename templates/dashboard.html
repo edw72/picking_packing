@@ -1,8 +1,6 @@
 {% extends "layout.html" %}
 
-{% block title %}
-    Dashboard de Picking
-{% endblock %}
+{% block title %}Dashboard de Picking{% endblock %}
 
 {% block styles %}
     <style>
@@ -103,55 +101,39 @@
         }
 
         .estado-CANCELADA { background-color: #777; }
+        .estado-RETENIDO { background-color: #777; }
         tr.orden-cancelada {
             background-color: #f2f2f2 !important;
             text-decoration: line-through;
             opacity: 0.6;
         }
 
-
-         /* Estilos Responsive para la Tabla */
-    @media screen and (max-width: 768px) {
-        table { border: 0; }
-        table thead {
-            border: none;
-            clip: rect(0 0 0 0);
-            height: 1px;
-            margin: -1px;
-            overflow: hidden;
-            padding: 0;
-            position: absolute;
-            width: 1px;
-        }
-        table tr {
-            border-bottom: 3px solid #ddd;
-            display: block;
-            margin-bottom: .625em;
-            background-color: white;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        table td {
-            border-bottom: 1px solid #ddd;
-            display: block;
-            font-size: .8em;
-            text-align: right; /* Alinear el contenido a la derecha */
-        }
-        table td::before {
-            /* Usamos el atributo data-label para mostrar el nombre de la columna */
-            content: attr(data-label);
-            float: left; /* Alinear la etiqueta a la izquierda */
+        /* --- Estilo destacado para notas de bodega --- */
+        .nota-bodega-texto {
+            font-size: 0.95em;
             font-weight: bold;
-            text-transform: uppercase;
+            color: #856404;
+            background-color: #fff3cd;
+            padding: 4px 8px;
+            border-radius: 4px;
+            border-left: 3px solid #ffc107;
+            display: inline-block;
         }
-        table td:last-child { border-bottom: 0; }
-    }
+
+        @media screen and (max-width: 768px) {
+            table { border: 0; }
+            table thead { border: none; clip: rect(0 0 0 0); height: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; width: 1px; }
+            table tr { border-bottom: 3px solid #ddd; display: block; margin-bottom: .625em; background-color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+            table td { border-bottom: 1px solid #ddd; display: block; font-size: .8em; text-align: right; }
+            table td::before { content: attr(data-label); float: left; font-weight: bold; text-transform: uppercase; }
+            table td:last-child { border-bottom: 0; }
+        }
     </style>
 {% endblock %}
 
 {% block content %}
     <h1>Órdenes Pendientes para Alistar</h1>
 
-    <!-- NAVEGACIÓN ENTRE MÓDULOS -->
     <div class="navegacion-modulos">
         <strong>Módulos:</strong>
         <a href="{{ url_for('dashboard') }}" style="font-weight: bold; color: #337ab7;">Picking</a> |
@@ -162,43 +144,38 @@
         {% endif %}
     </div>
 
-    <!-- === NUEVO: PANEL DE ACCIONES REQUERIDAS PARA OPERARIO === -->
-{% if current_user.role == 'operario' and ordenes_a_devolver %}
-<div class="alert alert-warning" style="background-color: #fcf8e3; border: 1px solid #faebcc; color: #8a6d3b; padding: 1rem; margin-bottom: 1.5rem; border-radius: 5px;">
-    <h4>¡Atención! Acciones Requeridas</h4>
-    <p>Las siguientes órdenes fueron canceladas después de que recogiste los artículos. Por favor, devuelve los productos a su inventario y confirma la acción.</p>
-    <ul style="margin-top: 1rem;">
-        {% for orden in ordenes_a_devolver %}
-        <li style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-            <span>Orden cancelada: <strong>#{{ orden.numero_pedido }}</strong></span>
-            <form action="{{ url_for('confirmar_devolucion', orden_id=orden.id) }}" method="POST" style="margin: 0;">
-                <button type="submit" class="action-link" style="background-color:#5cb85c; color:white; border:none; cursor:pointer;">Confirmar Devolución</button>
-            </form>
-        </li>
-        {% endfor %}
-    </ul>
-</div>
-{% endif %}
-<!-- === FIN DEL PANEL === -->
+    {% if current_user.role == 'operario' and ordenes_a_devolver %}
+    <div class="alert alert-warning" style="background-color: #fcf8e3; border: 1px solid #faebcc; color: #8a6d3b; padding: 1rem; margin-bottom: 1.5rem; border-radius: 5px;">
+        <h4>¡Atención! Acciones Requeridas</h4>
+        <p>Las siguientes órdenes fueron canceladas después de que recogiste los artículos. Por favor, devuelve los productos a su inventario y confirma la acción.</p>
+        <ul style="margin-top: 1rem;">
+            {% for orden in ordenes_a_devolver %}
+            <li style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <span>Orden cancelada: <strong>#{{ orden.numero_pedido }}</strong></span>
+                <form action="{{ url_for('confirmar_devolucion', orden_id=orden.id) }}" method="POST" style="margin: 0;">
+                    <button type="submit" class="action-link" style="background-color:#5cb85c; color:white; border:none; cursor:pointer;">Confirmar Devolución</button>
+                </form>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
 
-    <!-- MENÚ DE FILTROS POR ESTADO -->
     <div class="filtros-container">
         <strong>Ver estado:</strong>
         <a href="{{ url_for('dashboard', estado='PENDIENTE') }}" class="{{ 'activo' if (filtro_actual == 'PENDIENTE' or not filtro_actual and current_user.role != 'admin') else '' }}">
            PENDIENTE <span id="pendientes-badge" style="display: none;">0</span>
         </a>
-        {% for estado in estados if estado != 'PENDIENTE' %}
+        {% for estado in estados if estado != 'PENDIENTE' and estado != 'RETENIDO' %}
             <a href="{{ url_for('dashboard', estado=estado) }}" class="{{ 'activo' if filtro_actual == estado else '' }}">{{ estado.replace('_', ' ') }}</a>
         {% endfor %}
         <a href="{{ url_for('dashboard') }}" class="{{ 'activo' if not filtro_actual and current_user.role == 'admin' else '' }}">Vista por Defecto</a>
     </div>
 
-        <!-- === NUEVO: PANEL DE ALERTA DE NUEVAS ÓRDENES (OCULTO) === -->
     <div id="new-orders-alert" class="flash flash-info" style="display: none; cursor: pointer; text-align: center;">
         <strong>¡Hay nuevas órdenes pendientes!</strong> Haz clic aquí para actualizar la lista.
     </div>
 
-    <!-- Mensajes Flash -->
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             {% for category, message in messages %}
@@ -207,90 +184,106 @@
         {% endif %}
     {% endwith %}
 
-
     <form action="{{ url_for('crear_lote') }}" method="POST" id="form-crear-lote">
-    
-    <table>
-        <thead>
-            <tr>
-                <th>Sel.</th>
-                <th>Pedido #</th>
-                <th>Cliente</th>
-                <th>Estado</th>
-                <th style="text-align: center;">Asignado a</th>
-                <th style="text-align: center;">Acción</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for orden in ordenes %}
-                <tr class="{{ 'orden-cancelada' if orden.estado == 'CANCELADA' else '' }}">
-                    <td data-label="Seleccionar" style="text-align: center;">
-                        {% if orden.estado == 'PENDIENTE' %}
-                            <!-- 2. El checkbox ahora usa el atributo 'form' para vincularse al formulario de abajo -->
-                            <input type="checkbox" name="orden_id" value="{{ orden.id }}" form="form-crear-lote">
-                        {% endif %}
-                    </td>
-                    <td data-label="Pedido #">{{ orden.numero_pedido }}</td>
-                    <td data-label="Cliente">{{ orden.cliente_nombre }}</td>
-                    <td data-label="Estado">
-                        <span class="estado estado-{{ orden.estado }}">{{ orden.estado.replace('_', ' ') }}</span>
-                    </td>
-                    <td data-label="Asignado a" style="text-align: center;">
-                        {% if orden.lote and orden.lote.operario %}
-                            <strong>{{ orden.lote.operario.username }}</strong>
-                        {% elif orden.estado == 'EN_PICKING' %}
-                            {% if current_user.role == 'operario' %}
-                                <form action="{{ url_for('tomar_lote', lote_id=orden.lote_id) }}" method="POST" style="margin: 0;">
-                                    <button type="submit" class="action-button-take">Tomar Lote</button>
-                                 </form>
-                            {% else %}
-                                <span style="color: #777; font-style: italic;">Sin Asignar</span>
-                            {% endif %}
-                        {% else %}
-                            <span style="color: #ccc;">--</span>
-                        {% endif %}
-                    </td>
-                    <td data-label="Acción" style="text-align: center;">
-                        <!-- 3. Los botones de acción ahora son formularios independientes y ya no están anidados -->
-                        {% if orden.estado == 'EN_PICKING' and orden.lote and (current_user.role == 'admin' or (orden.lote.operario and current_user.id == orden.lote.operario_id)) %}
-                            <a href="{{ url_for('detalle_lote', lote_id=orden.lote_id) }}" class="action-link action-link-picking">Continuar Picking</a>
-                        {% else %}
-                            <a href="{{ url_for('detalle_orden', orden_id=orden.id) }}" class="action-link">Ver Detalle</a>
-                        {% endif %}
-
-                        {% if current_user.role == 'admin' and orden.estado == 'PENDIENTE' %}
-                            <!-- El formulario de "Retener" ahora es independiente -->
-                            <form action="{{ url_for('retener_orden', orden_id=orden.id) }}" method="POST" style="display: inline; margin-left: 5px;" onsubmit="return confirm('¿Poner esta orden en retención (apartado)? Desaparecerá de esta lista.');">
-                                <button type="submit" class="action-button-take" style="background-color: #777;">Retener</button>
-                            </form>
-                        {% endif %}
-                    </td>
+        <table>
+            <thead>
+                <tr>
+                    <th>Sel.</th>
+                    <th>Pedido #</th>
+                    <th>Cliente</th>
+                    <th>Indicaciones de Bodega</th> <!-- NUEVA COLUMNA -->
+                    <th>Estado</th>
+                    <th style="text-align: center;">Asignado a</th>
+                    <th style="text-align: center;">Acción</th>
                 </tr>
-            {% else %}
-                <tr><td colspan="6" style="text-align: center; padding: 2em;">No hay órdenes que coincidan con el filtro actual.</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    
-    <!-- El bloque de acciones para crear el lote ahora está DENTRO del formulario -->
-    {% if ordenes | selectattr('estado', 'equalto', 'PENDIENTE') | list %}
-        {% if current_user.role == 'admin' and operarios %}
-        <div class="asignacion-container">
-            <label for="operario_id">Asignar Lote a (Opcional):</label>
-            <select name="operario_id" id="operario_id">
-                <option value="">-- Dejar sin asignar --</option>
-                {% for operario in operarios %}
-                <option value="{{ operario.id }}">{{ operario.username }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        {% endif %}
-        <button type="submit" class="submit-btn">Crear Lote de Picking con Órdenes Seleccionadas</button>
-    {% endif %}
-</form>
-{% endblock %}
+            </thead>
+            <tbody>
+                {% for orden in ordenes %}
+                    <tr class="{{ 'orden-cancelada' if orden.estado == 'CANCELADA' else '' }}">
+                        <td data-label="Seleccionar" style="text-align: center;">
+                            {% if orden.estado == 'PENDIENTE' %}
+                                <input type="checkbox" name="orden_id" value="{{ orden.id }}" form="form-crear-lote">
+                            {% endif %}
+                        </td>
+                        <td data-label="Pedido #">{{ orden.numero_pedido }}</td>
+                        <td data-label="Cliente">{{ orden.cliente_nombre }}</td>
+                        
+                        <!-- === INICIO: NUEVA CELDA DE NOTAS === -->
+                        <td data-label="Indicaciones de Bodega">
+                            {% if orden.nota_bodega %}
+                                <span class="nota-bodega-texto">{{ orden.nota_bodega }}</span>
+                            {% else %}
+                                <span class="nota-bodega-texto-vacia" style="color: #ccc; font-style: italic;">--</span>
+                            {% endif %}
+                            
+                            <!-- El lápiz de edición rápida para admins y operarios de logística -->
+                            {% if current_user.role in ['admin', 'operario'] %}
+                                <form action="{{ url_for('editar_nota_bodega', orden_id=orden.id) }}" method="POST" style="display: inline; margin-left: 5px;" onsubmit="return editarNotaBodega(this, '{{ orden.numero_pedido }}');">
+                                    <input type="hidden" name="nota_bodega" class="nota-bodega-input">
+                                    <button type="submit" style="background: none; border: none; cursor: pointer; font-size: 1.1rem; padding: 0;" title="Editar indicación de bodega">✏️</button>
+                                </form>
+                            {% endif %}
+                        </td>
+                        <!-- === FIN: NUEVA CELDA === -->
 
-<!-- En templates/dashboard.html -->
+                        <td data-label="Estado">
+                            <span class="estado estado-{{ orden.estado }}">{{ orden.estado.replace('_', ' ') }}</span>
+                        </td>
+                        <td data-label="Asignado a" style="text-align: center;">
+                            {% if orden.lote and orden.lote.operario %}
+                                <strong>{{ orden.lote.operario.username }}</strong>
+                            {% elif orden.estado == 'EN_PICKING' %}
+                                {% if current_user.role == 'operario' %}
+                                    <form action="{{ url_for('tomar_lote', lote_id=orden.lote_id) }}" method="POST" style="margin: 0;">
+                                        <button type="submit" class="action-button-take">Tomar Lote</button>
+                                    </form>
+                                {% else %}
+                                    <span style="color: #777; font-style: italic;">Sin Asignar</span>
+                                {% endif %}
+                            {% else %}
+                                <span style="color: #ccc;">--</span>
+                            {% endif %}
+                        </td>
+                        <td data-label="Acción" style="text-align: center;">
+                            {% if orden.estado == 'EN_PICKING' and orden.lote and (current_user.role == 'admin' or (orden.lote.operario and current_user.id == orden.lote.operario_id)) %}
+                                <a href="{{ url_for('detalle_lote', lote_id=orden.lote_id) }}" class="action-link action-link-picking">Continuar Picking</a>
+                            {% else %}
+                                <a href="{{ url_for('detalle_orden', orden_id=orden.id) }}" class="action-link">Ver Detalle</a>
+                            {% endif %}
+
+                            {% if current_user.role == 'admin' and orden.estado == 'PENDIENTE' %}
+                                <form action="{{ url_for('retener_orden', orden_id=orden.id) }}" method="POST" style="display: inline; margin-left: 5px;" onsubmit="return confirm('¿Poner esta orden en retención (apartado)? Desaparecerá de esta lista.');">
+                                    <button type="submit" class="action-button-take" style="background-color: #777;">Retener</button>
+                                </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 2em;">
+                            No hay órdenes que coincidan con el filtro actual.
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        {% if ordenes | selectattr('estado', 'equalto', 'PENDIENTE') | list %}
+            {% if current_user.role == 'admin' and operarios %}
+            <div class="asignacion-container">
+                <label for="operario_id">Asignar Lote a (Opcional):</label>
+                <select name="operario_id" id="operario_id">
+                    <option value="">-- Dejar sin asignar --</option>
+                    {% for operario in operarios %}
+                    <option value="{{ operario.id }}">{{ operario.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            <button type="submit" class="submit-btn">Crear Lote de Picking con Órdenes Seleccionadas</button>
+        {% endif %}
+    </form>
+{% endblock %}
 
 {% block scripts %}
 <script>
@@ -299,8 +292,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const alertPanel = document.getElementById('new-orders-alert');
     const audioNotification = new Audio("{{ url_for('static', filename='sounds/notification.mp3') }}");
     
-    // Asumimos que el audio ya fue desbloqueado por la interacción del usuario en layout.html
-    // si el usuario es un admin. Para operarios, también funcionará tras el primer clic.
     let audioUnlocked = false; 
     function unlockAudio() {
         if(audioUnlocked) return;
@@ -311,7 +302,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.body.addEventListener('click', unlockAudio, { once: true });
 
 
-    let currentPendingCount = -1; // Iniciamos en -1 para forzar la primera actualización
+    let currentPendingCount = -1;
 
     function checkNewOrders() {
         fetch("{{ url_for('api_ordenes_pendientes_count') }}")
@@ -319,19 +310,16 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(data => {
                 if (data && data.pendientes !== undefined) {
                     const newCount = data.pendientes;
-
-                    // La primera vez, solo actualizamos el contador sin notificar
                     if (currentPendingCount === -1) {
                         currentPendingCount = newCount;
                     } 
-                    // Si el nuevo conteo es mayor, notificamos
                     else if (newCount > currentPendingCount) {
-                        audioNotification.volume = 0.5;
-                        audioNotification.play().catch(e => console.error("Audio de nueva orden bloqueado:", e));
-                        alertPanel.style.display = 'block'; // Mostramos el panel de alerta
+                        if (audioUnlocked) {
+                            audioNotification.volume = 0.5;
+                            audioNotification.play().catch(e => console.error("Audio de nueva orden bloqueado:", e));
+                        }
+                        alertPanel.style.display = 'block';
                     }
-                    
-                    // Siempre actualizamos el conteo guardado y el badge
                     currentPendingCount = newCount;
                     updatePendingBadge(currentPendingCount);
                 }
@@ -348,17 +336,32 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Al hacer clic en el panel de alerta, recargamos la página para ver las nuevas órdenes
     alertPanel.addEventListener('click', function() {
         window.location.href = "{{ url_for('dashboard', estado='PENDIENTE') }}";
     });
 
-    // Iniciar el chequeo
-    checkNewOrders(); // Chequeo inmediato
-    setInterval(checkNewOrders, 30000); // Y luego cada 30 segundos
+    checkNewOrders();
+    setInterval(checkNewOrders, 30000);
 });
+
+// === INICIO: NUEVA FUNCIÓN PARA EDICIÓN DE NOTAS ===
+function editarNotaBodega(formElement, numeroPedido) {
+    // Buscamos el texto de la nota actual (si existe) para mostrarlo en el cuadro
+    const tdPadre = formElement.closest('td');
+    const textoNotaActualSpan = tdPadre.querySelector('.nota-bodega-texto');
+    const notaActual = textoNotaActualSpan ? textoNotaActualSpan.textContent.trim() : '';
+    
+    const nuevaNota = prompt(`Ingrese las indicaciones de bodega para la orden #${numeroPedido}:`, notaActual);
+    
+    // Si hace clic en Cancelar, detenemos el envío
+    if (nuevaNota === null) {
+        return false;
+    }
+    
+    // Si acepta, asignamos el valor (que puede ser vacío si borró el texto) al campo oculto
+    formElement.querySelector('.nota-bodega-input').value = nuevaNota.trim();
+    return true;
+}
+// === FIN: NUEVA FUNCIÓN ===
 </script>
 {% endblock %}
-
-
-
