@@ -126,6 +126,7 @@ class Orden(db.Model):
     guia_encomienda = db.Column(db.String(100), nullable=True)
     nota_entrega = db.Column(db.Text, nullable=True)
     fecha_entrega_final = db.Column(db.DateTime, nullable=True)
+    nota_bodega = db.Column(db.Text, nullable=True)
     def __repr__(self): return f'<Orden {self.numero_pedido}>'
 
 class User(UserMixin, db.Model):
