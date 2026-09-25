@@ -68,15 +68,18 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+# En app.py, busca y reemplaza esta función completa:
+
 def logistica_required(f):
     """
-    Decorador que verifica si el usuario tiene rol de 'admin' o 'operario'.
+    Decorador que verifica si el usuario tiene rol de 'admin', 'operario' o 'garantias'.
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or current_user.role not in ['admin', 'operario']:
-            flash('Se requiere rol de Administrador o de Operario para acceder a esta página.', 'error')
-            return redirect(url_for('dashboard')) # O a donde prefieras
+        # === MODIFICACIÓN: Añadido 'garantias' a los roles permitidos ===
+        if not current_user.is_authenticated or current_user.role not in ['admin', 'operario', 'garantias']:
+            flash('Se requiere rol de Administrador, Operario o Garantías para acceder a esta página.', 'error')
+            return redirect(url_for('dashboard'))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -2472,14 +2475,21 @@ def editar_gasto(gasto_id):
 
 # En app.py, añade esta nueva ruta
 
+# En app.py, busca y reemplaza esta función completa:
+
 @app.route('/orden/<int:orden_id>/editar-nota-bodega', methods=['POST'])
 @login_required
-@logistica_required # Tanto admins como operarios pueden añadir notas operativas
+# Solo permitimos a admin y garantias
 def editar_nota_bodega(orden_id):
+    # --- INICIO: CONTROL DE SEGURIDAD ESTRICTO ---
+    if current_user.role not in ['admin', 'garantias']:
+        flash('No tiene permisos para modificar las indicaciones de bodega.', 'error')
+        return redirect(url_for('dashboard'))
+    # --- FIN: CONTROL DE SEGURIDAD ---
+
     orden = db.get_or_404(Orden, orden_id)
     nueva_nota = request.form.get('nota_bodega', '').strip()
     
-    # Guardamos la nota (si está vacía, se almacena como None para que se limpie de la vista)
     orden.nota_bodega = nueva_nota if nueva_nota else None
     db.session.commit()
     

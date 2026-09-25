@@ -155,20 +155,18 @@
                 {% endif %}
 
                         <!-- === INICIO: NUEVO BLOQUE PARA OPERARIOS Y OTROS ROLES === -->
-                {% if current_user.role == 'operario' %}
-                    <div class="nav-admin-links">
-                        <a href="{{ url_for('dashboard') }}">Picking</a>
-                        <a href="{{ url_for('dashboard_packing') }}">Packing</a>
-                        <a href="{{ url_for('dashboard_despacho') }}">Despacho</a>
-                        <a href="{{ url_for('gestionar_rutas') }}">Hojas de Ruta</a>
-                        <!-- === INICIO: AÑADIR ENLACE PARA OPERARIO === -->
-                        <a href="{{ url_for('gestionar_entregas_fallidas') }}" class="nav-link-with-badge">
-                            Entregas Fallidas
-                            <span id="entrega-incidencias-badge" class="notification-badge">0</span>
-                        </a>
-                        <!-- === FIN: AÑADIR ENLACE PARA OPERARIO === -->
-                    </div>
-                {% endif %}
+                {% if current_user.role in ['operario', 'garantias'] %}
+                <div class="nav-admin-links">
+                    <a href="{{ url_for('dashboard') }}">Picking</a>
+                    <a href="{{ url_for('dashboard_packing') }}">Packing</a>
+                    <a href="{{ url_for('dashboard_despacho') }}">Despacho</a>
+                    <a href="{{ url_for('gestionar_rutas') }}">Hojas de Ruta</a>
+                    <a href="{{ url_for('gestionar_entregas_fallidas') }}" class="nav-link-with-badge">
+                        Entregas Fallidas
+                        <span id="entrega-incidencias-badge" class="notification-badge">0</span>
+                    </a>
+                </div>
+            {% endif %}
                 <!-- === FIN: NUEVO BLOQUE === -->
 
                 <!-- Info de usuario y Logout para todos -->
@@ -196,13 +194,13 @@
     </main>
 
      <!-- === INICIO: CAMBIO EN EL DIV DE DATOS PARA JS === -->
-    {% if current_user.is_authenticated and current_user.role in ['admin', 'operario'] %}
+    {% if current_user.is_authenticated and current_user.role in ['admin', 'operario', 'garantias'] %}
         <div id="audio-container" 
-             data-notification-sound="{{ url_for('static', filename='sounds/notification.mp3') }}"
-             data-silent-sound="{{ url_for('static', filename='sounds/silent.mp3') }}"
-             data-check-url-picking="{{ url_for('api_incidencias_pendientes_count') }}"
-             data-check-url-entregas="{{ url_for('api_entregas_fallidas_pendientes_count') }}"
-             style="display: none;">
+            data-notification-sound="{{ url_for('static', filename='sounds/notification.mp3') }}"
+            data-silent-sound="{{ url_for('static', filename='sounds/silent.mp3') }}"
+            data-check-url-picking="{{ url_for('api_incidencias_pendientes_count') }}"
+            data-check-url-entregas="{{ url_for('api_entregas_fallidas_pendientes_count') }}"
+            style="display: none;">
         </div>
         <script src="{{ url_for('static', filename='js/notifications.js') }}"></script>
     {% endif %}

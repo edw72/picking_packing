@@ -215,8 +215,8 @@
                             <span class="nota-bodega-texto-vacia" style="color: #ccc; font-style: italic;">--</span>
                         {% endif %}
                         
-                        {% if current_user.role in ['admin'] %}
-                            <!-- Formulario de edición completamente independiente -->
+                        <!-- === MODIFICACIÓN: Mostrar lápiz solo a admin y garantias === -->
+                        {% if current_user.role in ['admin', 'garantias'] %}
                             <form action="{{ url_for('editar_nota_bodega', orden_id=orden.id) }}" method="POST" style="display: inline; margin-left: 5px;" onsubmit="return editarNotaBodega(this, '{{ orden.numero_pedido }}');">
                                 <input type="hidden" name="nota_bodega" class="nota-bodega-input">
                                 <button type="submit" style="background: none; border: none; cursor: pointer; font-size: 1.1rem; padding: 0;" title="Editar indicación de bodega">+</button>
