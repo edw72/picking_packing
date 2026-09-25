@@ -108,7 +108,6 @@
             opacity: 0.6;
         }
 
-        /* --- Estilo destacado para notas de bodega --- */
         .nota-bodega-texto {
             font-size: 0.95em;
             font-weight: bold;
@@ -184,90 +183,91 @@
         {% endif %}
     {% endwith %}
 
-    <form action="{{ url_for('crear_lote') }}" method="POST" id="form-crear-lote">
-        <table>
-            <thead>
-                <tr>
-                    <th>Sel.</th>
-                    <th>Pedido #</th>
-                    <th>Cliente</th>
-                    <th>Indicaciones de Bodega</th> <!-- NUEVA COLUMNA -->
-                    <th>Estado</th>
-                    <th style="text-align: center;">Asignado a</th>
-                    <th style="text-align: center;">Acción</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for orden in ordenes %}
-                    <tr class="{{ 'orden-cancelada' if orden.estado == 'CANCELADA' else '' }}">
-                        <td data-label="Seleccionar" style="text-align: center;">
-                            {% if orden.estado == 'PENDIENTE' %}
-                                <input type="checkbox" name="orden_id" value="{{ orden.id }}" form="form-crear-lote">
-                            {% endif %}
-                        </td>
-                        <td data-label="Pedido #">{{ orden.numero_pedido }}</td>
-                        <td data-label="Cliente">{{ orden.cliente_nombre }}</td>
+    <!-- === CAMBIO CLAVE: La tabla ya NO está dentro de ningún formulario === -->
+    <table>
+        <thead>
+            <tr>
+                <th>Sel.</th>
+                <th>Pedido #</th>
+                <th>Cliente</th>
+                <th>Indicaciones de Bodega</th>
+                <th>Estado</th>
+                <th style="text-align: center;">Asignado a</th>
+                <th style="text-align: center;">Acción</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for orden in ordenes %}
+                <tr class="{{ 'orden-cancelada' if orden.estado == 'CANCELADA' else '' }}">
+                    <td data-label="Seleccionar" style="text-align: center;">
+                        {% if orden.estado == 'PENDIENTE' %}
+                            <!-- El checkbox se vincula al formulario de abajo de forma remota -->
+                            <input type="checkbox" name="orden_id" value="{{ orden.id }}" form="form-crear-lote">
+                        {% endif %}
+                    </td>
+                    <td data-label="Pedido #">{{ orden.numero_pedido }}</td>
+                    <td data-label="Cliente">{{ orden.cliente_nombre }}</td>
+                    
+                    <td data-label="Indicaciones de Bodega">
+                        {% if orden.nota_bodega %}
+                            <span class="nota-bodega-texto">{{ orden.nota_bodega }}</span>
+                        {% else %}
+                            <span class="nota-bodega-texto-vacia" style="color: #ccc; font-style: italic;">--</span>
+                        {% endif %}
                         
-                        <!-- === INICIO: NUEVA CELDA DE NOTAS === -->
-                        <td data-label="Indicaciones de Bodega">
-                            {% if orden.nota_bodega %}
-                                <span class="nota-bodega-texto">{{ orden.nota_bodega }}</span>
-                            {% else %}
-                                <span class="nota-bodega-texto-vacia" style="color: #ccc; font-style: italic;">--</span>
-                            {% endif %}
-                            
-                            <!-- El lápiz de edición rápida para admins y operarios de logística -->
-                            {% if current_user.role in ['admin'] %}
-                                <form action="{{ url_for('editar_nota_bodega', orden_id=orden.id) }}" method="POST" style="display: inline; margin-left: 5px;" onsubmit="return editarNotaBodega(this, '{{ orden.numero_pedido }}');">
-                                    <input type="hidden" name="nota_bodega" class="nota-bodega-input">
-                                    <button type="submit" style="background: none; border: none; cursor: pointer; font-size: 1.1rem; padding: 0;" title="Editar indicación de bodega">➕</button>
-                                </form>
-                            {% endif %}
-                        </td>
-                        <!-- === FIN: NUEVA CELDA === -->
+                        {% if current_user.role in ['admin', 'operario'] %}
+                            <!-- Formulario de edición completamente independiente -->
+                            <form action="{{ url_for('editar_nota_bodega', orden_id=orden.id) }}" method="POST" style="display: inline; margin-left: 5px;" onsubmit="return editarNotaBodega(this, '{{ orden.numero_pedido }}');">
+                                <input type="hidden" name="nota_bodega" class="nota-bodega-input">
+                                <button type="submit" style="background: none; border: none; cursor: pointer; font-size: 1.1rem; padding: 0;" title="Editar indicación de bodega">✏️</button>
+                            </form>
+                        {% endif %}
+                    </td>
 
-                        <td data-label="Estado">
-                            <span class="estado estado-{{ orden.estado }}">{{ orden.estado.replace('_', ' ') }}</span>
-                        </td>
-                        <td data-label="Asignado a" style="text-align: center;">
-                            {% if orden.lote and orden.lote.operario %}
-                                <strong>{{ orden.lote.operario.username }}</strong>
-                            {% elif orden.estado == 'EN_PICKING' %}
-                                {% if current_user.role == 'operario' %}
-                                    <form action="{{ url_for('tomar_lote', lote_id=orden.lote_id) }}" method="POST" style="margin: 0;">
-                                        <button type="submit" class="action-button-take">Tomar Lote</button>
-                                    </form>
-                                {% else %}
-                                    <span style="color: #777; font-style: italic;">Sin Asignar</span>
-                                {% endif %}
-                            {% else %}
-                                <span style="color: #ccc;">--</span>
-                            {% endif %}
-                        </td>
-                        <td data-label="Acción" style="text-align: center;">
-                            {% if orden.estado == 'EN_PICKING' and orden.lote and (current_user.role == 'admin' or (orden.lote.operario and current_user.id == orden.lote.operario_id)) %}
-                                <a href="{{ url_for('detalle_lote', lote_id=orden.lote_id) }}" class="action-link action-link-picking">Continuar Picking</a>
-                            {% else %}
-                                <a href="{{ url_for('detalle_orden', orden_id=orden.id) }}" class="action-link">Ver Detalle</a>
-                            {% endif %}
-
-                            {% if current_user.role == 'admin' and orden.estado == 'PENDIENTE' %}
-                                <form action="{{ url_for('retener_orden', orden_id=orden.id) }}" method="POST" style="display: inline; margin-left: 5px;" onsubmit="return confirm('¿Poner esta orden en retención (apartado)? Desaparecerá de esta lista.');">
-                                    <button type="submit" class="action-button-take" style="background-color: #777;">Retener</button>
+                    <td data-label="Estado">
+                        <span class="estado estado-{{ orden.estado }}">{{ orden.estado.replace('_', ' ') }}</span>
+                    </td>
+                    <td data-label="Asignado a" style="text-align: center;">
+                        {% if orden.lote and orden.lote.operario %}
+                            <strong>{{ orden.lote.operario.username }}</strong>
+                        {% elif orden.estado == 'EN_PICKING' %}
+                            {% if current_user.role == 'operario' %}
+                                <form action="{{ url_for('tomar_lote', lote_id=orden.lote_id) }}" method="POST" style="margin: 0;">
+                                    <button type="submit" class="action-button-take">Tomar Lote</button>
                                 </form>
+                            {% else %}
+                                <span style="color: #777; font-style: italic;">Sin Asignar</span>
                             {% endif %}
-                        </td>
-                    </tr>
-                {% else %}
-                    <tr>
-                        <td colspan="7" style="text-align: center; padding: 2em;">
-                            No hay órdenes que coincidan con el filtro actual.
-                        </td>
-                    </tr>
+                        {% else %}
+                            <span style="color: #ccc;">--</span>
+                        {% endif %}
+                    </td>
+                    <td data-label="Acción" style="text-align: center;">
+                        {% if orden.estado == 'EN_PICKING' and orden.lote and (current_user.role == 'admin' or (orden.lote.operario and current_user.id == orden.lote.operario_id)) %}
+                            <a href="{{ url_for('detalle_lote', lote_id=orden.lote_id) }}" class="action-link action-link-picking">Continuar Picking</a>
+                        {% else %}
+                            <a href="{{ url_for('detalle_orden', orden_id=orden.id) }}" class="action-link">Ver Detalle</a>
+                        {% endif %}
+
+                        {% if current_user.role == 'admin' and orden.estado == 'PENDIENTE' %}
+                            <form action="{{ url_for('retener_orden', orden_id=orden.id) }}" method="POST" style="display: inline; margin-left: 5px;" onsubmit="return confirm('¿Poner esta orden en retención (apartado)? Desaparecerá de esta lista.');">
+                                <button type="submit" class="action-button-take" style="background-color: #777;">Retener</button>
+                            </form>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="7" style="text-align: center; padding: 2em;">
+                        No hay órdenes que coincidan con el filtro actual.
+                    </td>
+                </tr>
                 {% endfor %}
-            </tbody>
-        </table>
-        
+        </tbody>
+    </table>
+
+    <!-- === EL FORMULARIO DE CREAR LOTE SITS AQUÍ COMPLETAMENTE SEPARADO === -->
+    <form action="{{ url_for('crear_lote') }}" method="POST" id="form-crear-lote">
         {% if ordenes | selectattr('estado', 'equalto', 'PENDIENTE') | list %}
             {% if current_user.role == 'admin' and operarios %}
             <div class="asignacion-container">
@@ -344,24 +344,19 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(checkNewOrders, 30000);
 });
 
-// === INICIO: NUEVA FUNCIÓN PARA EDICIÓN DE NOTAS ===
 function editarNotaBodega(formElement, numeroPedido) {
-    // Buscamos el texto de la nota actual (si existe) para mostrarlo en el cuadro
     const tdPadre = formElement.closest('td');
     const textoNotaActualSpan = tdPadre.querySelector('.nota-bodega-texto');
     const notaActual = textoNotaActualSpan ? textoNotaActualSpan.textContent.trim() : '';
     
     const nuevaNota = prompt(`Ingrese las indicaciones de bodega para la orden #${numeroPedido}:`, notaActual);
     
-    // Si hace clic en Cancelar, detenemos el envío
     if (nuevaNota === null) {
         return false;
     }
     
-    // Si acepta, asignamos el valor (que puede ser vacío si borró el texto) al campo oculto
     formElement.querySelector('.nota-bodega-input').value = nuevaNota.trim();
     return true;
 }
-// === FIN: NUEVA FUNCIÓN ===
 </script>
 {% endblock %}
