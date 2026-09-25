@@ -1901,10 +1901,13 @@ def detalle_ruta_conductor():
         balance=balance
     )
 
+# En app.py, reemplaza la función actualizar_estado_orden por esta:
+
 @app.route('/orden/<int:orden_id>/actualizar-estado', methods=['POST'])
 @login_required
 @conductor_required
 def actualizar_estado_orden(orden_id):
+    # Buscamos la orden activa en la ruta
     orden = db.session.execute(db.select(Orden).join(Orden.hoja_de_ruta).where(
         Orden.id == orden_id,
         HojaDeRuta.conductor_id == current_user.id,
@@ -1916,34 +1919,37 @@ def actualizar_estado_orden(orden_id):
         return redirect(url_for('detalle_ruta_conductor'))
 
     nuevo_estado = request.form.get('estado')
+    # === AÑADIDO: Capturamos la guía de encomienda si se proporciona en este formulario ===
+    guia = request.form.get('guia_encomienda', '').strip()
     operacion_valida = True
 
     if nuevo_estado == 'ENTREGADO':
         orden.estado = 'ENTREGADO'
         orden.nota_entrega = None
-        # --- INICIO: Sellar la hora ---
         orden.fecha_entrega_final = datetime.datetime.utcnow()
-        # --- FIN: Sellar la hora ---
+        # Si el conductor escribió una guía, la guardamos de una vez
+        if guia:
+            orden.guia_encomienda = guia
+        db.session.commit()
         flash(f"Orden #{orden.numero_pedido} marcada como ENTREGADA.", "success")
     
     elif nuevo_estado == 'ENTREGA_FALLIDA':
         nota = request.form.get('nota_fallida', '').strip()
+        
         if not nota:
             operacion_valida = False
             flash("Debe proporcionar una razón para la entrega fallida.", "error")
         else:
             orden.estado = 'INCIDENCIA_ENTREGA'
             orden.nota_entrega = nota
-            # --- INICIO: Sellar la hora ---
             orden.fecha_entrega_final = datetime.datetime.utcnow()
-            # --- FIN: Sellar la hora ---
+            # Si el conductor escribió una guía en una entrega fallida, también se guarda
+            if guia:
+                orden.guia_encomienda = guia
+            db.session.commit()
             flash(f"Incidencia de entrega para la orden #{orden.numero_pedido} registrada.", "warning")
     else:
-        operacion_valida = False
         flash("Estado no válido.", "error")
-
-    if operacion_valida:
-        db.session.commit()
 
     return redirect(url_for('detalle_ruta_conductor'))
 
