@@ -1231,64 +1231,56 @@ def reportes_y_busqueda():
 @logistica_required
 def gestionar_rutas():
     if request.method == 'POST':
-        tipo_entrega = request.form.get('tipo_entrega')
+        # Al simplificar el flujo, ahora toda hoja de ruta creada aquí es obligatoriamente INTERNA
+        conductor_id = request.form.get('conductor_id')
+        gastos_str = request.form.get('gastos_asignados', '0').replace(',', '.')
         
-        # El objeto se crea sin gastos asignados. Se añadirán después.
-        nueva_ruta = HojaDeRuta(tipo_entrega=tipo_entrega)
-
-        if tipo_entrega == 'INTERNA':
-            conductor_id = request.form.get('conductor_id')
-            if not conductor_id:
-                flash('Debe seleccionar un conductor para una ruta interna.', 'error')
-                return redirect(url_for('gestionar_rutas'))
-            nueva_ruta.conductor_id = int(conductor_id)
-
-        elif tipo_entrega == 'EXTERNA':
-            nombre_transportista = request.form.get('nombre_transportista')
-            # --- INICIO: CAMBIO EN LA VALIDACIÓN ---
-            # Ahora, solo el nombre del transportista es obligatorio.
-            if not nombre_transportista:
-                flash('El Nombre del Transportista es obligatorio para una entrega externa.', 'error')
-                return redirect(url_for('gestionar_rutas'))
+        if not conductor_id:
+            flash('Debe seleccionar un conductor para iniciar la hoja de ruta.', 'error')
+            return redirect(url_for('gestionar_rutas'))
             
-            # Los otros dos campos son opcionales y se guardan si se proporcionan.
-            nombre_receptor = request.form.get('nombre_receptor')
-            id_receptor = request.form.get('id_receptor')
-            # --- FIN: CAMBIO EN LA VALIDACIÓN ---
-            
-            nueva_ruta.nombre_transportista = nombre_transportista
-            nueva_ruta.nombre_receptor = nombre_receptor
-            nueva_ruta.id_receptor = id_receptor
-        
-        else:
-            flash('Tipo de entrega no válido.', 'error')
+        try:
+            gastos = float(gastos_str)
+            if gastos < 0:
+                flash('Los gastos asignados no pueden ser negativos.', 'error')
+                return redirect(url_for('gestionar_rutas'))
+        except ValueError:
+            flash('El valor de los gastos asignados no es un número válido.', 'error')
             return redirect(url_for('gestionar_rutas'))
 
+        # Creamos la ruta interna limpia
+        nueva_ruta = HojaDeRuta(
+            tipo_entrega='INTERNA',
+            conductor_id=int(conductor_id),
+            gastos_asignados=gastos
+        )
         db.session.add(nueva_ruta)
         db.session.commit()
         
-        flash(f'Hoja de Ruta #{nueva_ruta.id} ({tipo_entrega}) creada. Ahora añada las órdenes.', 'success')
-        # Redirigimos al detalle para el siguiente paso lógico
+        flash(f'Hoja de Ruta #{nueva_ruta.id} creada con éxito. Proceda a asignarle las órdenes.', 'success')
         return redirect(url_for('detalle_ruta', ruta_id=nueva_ruta.id))
-    
 
-    # --- INICIO: LÓGICA DE FILTROS Y BÚSQUEDA MEJORADA ---
+    # --- LÓGICA GET (BÚSQUEDA, FILTRO DE FECHA Y PAGINACIÓN) ---
     page = request.args.get('page', 1, type=int)
     search_query = request.args.get('search', '').strip()
-    
-    # Nuevo parámetro de filtro, con 'INTERNA' como valor por defecto
-    tipo_filtro = request.args.get('tipo', 'INTERNA')
-    
+    fecha_filtro = request.args.get('fecha', '').strip() # Extraemos el nuevo parámetro de fecha
     RUTAS_POR_PAGINA = 30
 
-    query_base = db.select(HojaDeRuta).options(joinedload(HojaDeRuta.conductor))
+    # Consulta base filtrada permanentemente para mostrar solo rutas de la empresa (INTERNAS)
+    query_base = db.select(HojaDeRuta).options(joinedload(HojaDeRuta.conductor)).where(HojaDeRuta.tipo_entrega == 'INTERNA')
 
-    # 1. Aplicamos el filtro por tipo de entrega
-    if tipo_filtro in ['INTERNA', 'EXTERNA']:
-        query_base = query_base.where(HojaDeRuta.tipo_entrega == tipo_filtro)
-    # (Si se pasa un tipo inválido, no se filtra y se muestran todas)
+    # --- NUEVO: Filtro por fecha de creación ---
+    if fecha_filtro:
+        try:
+            # Convertimos el string 'YYYY-MM-DD' a objetos datetime para cubrir todo el rango de ese día
+            fecha_dt = datetime.datetime.strptime(fecha_filtro, '%Y-%m-%d').date()
+            inicio_dia = datetime.datetime.combine(fecha_dt, datetime.time.min)
+            fin_dia = datetime.datetime.combine(fecha_dt, datetime.time.max)
+            query_base = query_base.where(HojaDeRuta.fecha_creacion.between(inicio_dia, fin_dia))
+        except ValueError:
+            pass
 
-    # 2. Si hay un término de búsqueda, lo aplicamos ADEMÁS del filtro
+    # Buscador por # de ruta o de pedido (sin cambios)
     if search_query:
         query_base = query_base.outerjoin(HojaDeRuta.ordenes).where(
             or_(
@@ -1301,8 +1293,7 @@ def gestionar_rutas():
 
     pagination = db.paginate(query_base, page=page, per_page=RUTAS_POR_PAGINA, error_out=False)
     rutas = pagination.items
-    # --- FIN: LÓGICA MEJORADA ---
-
+    
     conductores = db.session.execute(db.select(User).filter_by(role='conductor').order_by(User.username)).scalars().all()
     
     return render_template(
@@ -1311,12 +1302,11 @@ def gestionar_rutas():
         conductores=conductores,
         pagination=pagination,
         search_query=search_query,
-        tipo_filtro_actual=tipo_filtro # Pasamos el filtro actual a la plantilla
+        fecha_filtro=fecha_filtro # Pasamos el filtro para mantener el valor en la interfaz
     )
 
 
 
-# En app.py, reemplaza esta función completa
 
 @app.route('/reportes/operarios')
 @login_required

@@ -9,7 +9,7 @@
     .form-container, .list-container { background: white; padding: 2em; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
     .form-group { margin-bottom: 1rem; }
     label { display: block; margin-bottom: 0.5rem; font-weight: bold; }
-    input[type="text"], input[type="number"], select { width: 100%; padding: 0.7rem; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
+    input[type="text"], input[type="number"], input[type="date"], select { width: 100%; padding: 0.7rem; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
     .submit-btn { width: 100%; padding: 0.8rem; background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1rem; }
     table { width: 100%; border-collapse: collapse; }
     th, td { padding: 0.8rem; border-bottom: 1px solid #ddd; text-align: left; vertical-align: middle;}
@@ -18,12 +18,16 @@
     .estado-EN_PREPARACION { background-color: #f0ad4e; }
     .estado-EN_RUTA { background-color: #337ab7; }
     .estado-FINALIZADA { background-color: #5cb85c; }
-    #campos-externa, #campos-interna { border-left: 3px solid #eee; padding-left: 1rem; margin-top: 1rem; }
     
-    /* --- Nuevos Estilos para Búsqueda y Paginación --- */
-    .search-form { display: flex; gap: 10px; margin-bottom: 1.5rem; }
-    .search-form input { flex-grow: 1; }
-    .search-form button { padding: 0 20px; }
+    /* --- Estilos para la barra de búsqueda y filtros unificados --- */
+    .search-form { display: flex; gap: 10px; margin-bottom: 1.5rem; flex-wrap: wrap; }
+    .search-form input[type="text"] { flex-grow: 2; min-width: 200px; }
+    .search-form input[type="date"] { flex-grow: 1; min-width: 150px; }
+    .search-form .search-btn { padding: 0 20px; background-color: #337ab7; }
+    .search-form .search-btn:hover { background-color: #286090; }
+    .search-form .clear-btn { background-color: #6c757d; color: white; line-height: 2.3rem; text-decoration: none; padding: 0 15px; border-radius: 5px; text-align: center; }
+    .search-form .clear-btn:hover { background-color: #5a6268; }
+
     .pagination { margin-top: 1.5rem; text-align: center; }
     .pagination a {
         text-decoration: none; padding: 8px 15px; margin: 0 5px;
@@ -32,30 +36,7 @@
     .pagination .disabled { color: #ccc; border-color: #ccc; cursor: not-allowed; }
     .pagination .current {
         background-color: #007bff; color: white; font-weight: bold;
-        border-color: #007bff; z-index: 2;
-    }
-
-    /* --- Nuevos Estilos para los Filtros --- */
-    .filtros-container {
-        margin-bottom: 1.5rem;
-        padding: 1rem;
-        background-color: #f0f0f0;
-        border-radius: 5px;
-        display: flex;
-        gap: 1rem;
-        align-items: center;
-    }
-    .filtros-container a {
-        text-decoration: none;
-        padding: 8px 15px;
-        border-radius: 5px;
-        color: #007bff;
-        border: 1px solid #007bff;
-        font-weight: bold;
-    }
-    .filtros-container a.activo {
-        background-color: #007bff;
-        color: white;
+        border-color: #007bff;
     }
 </style>
 {% endblock %}
@@ -70,100 +51,59 @@
 {% endwith %}
 
 <div class="admin-container">
+    <!-- Columna Izquierda: Formulario Simplificado (Solo Rutas de la Empresa) -->
     <div class="form-container">
         <h2>Crear Nueva Ruta</h2>
         <form method="POST">
-            <!-- --- INICIO: Selector de Tipo de Entrega --- -->
+            <!-- Eliminamos el selector de tipo de entrega y dejamos únicamente la asignación del conductor -->
             <div class="form-group">
-                <label for="tipo_entrega">Tipo de Entrega</label>
-                <select id="tipo_entrega" name="tipo_entrega" required>
-                    <option value="INTERNA" selected>Interna (Conductor de la empresa)</option>
-                    <option value="EXTERNA">Externa (Transportista tercero)</option>
+                <label for="conductor_id">Asignar a Conductor</label>
+                <select id="conductor_id" name="conductor_id" required>
+                    <option value="">-- Seleccione un conductor --</option>
+                    {% for conductor in conductores %}
+                    <option value="{{ conductor.id }}">{{ conductor.username }}</option>
+                    {% endfor %}
                 </select>
+                {% if not conductores %}
+                <p style="color: #d9534f; font-size: 0.9em;">No hay usuarios con el rol 'conductor' creados.</p>
+                {% endif %}
             </div>
-            <!-- --- FIN: Selector --- -->
 
-            <!-- --- INICIO: Campos para Ruta INTERNA (visibles por defecto) --- -->
-            <div id="campos-interna">
-                <div class="form-group">
-                    <label for="conductor_id">Asignar a Conductor</label>
-                    <select id="conductor_id" name="conductor_id">
-                        <option value="">-- Seleccione un conductor --</option>
-                        {% for conductor in conductores %}
-                        <option value="{{ conductor.id }}">{{ conductor.username }}</option>
-                        {% endfor %}
-                    </select>
-                    {% if not conductores %}
-                    <p style="color: #d9534f; font-size: 0.9em;">No hay usuarios con el rol 'conductor'.</p>
-                    {% endif %}
-                </div>
+            <!-- El campo de dinero se queda aquí por defecto en 0. Se puede ajustar en este paso o en el detalle -->
+            <div class="form-group">
+                <label for="gastos_asignados">Gastos Asignados (¢)</label>
+                <input type="number" id="gastos_asignados" name="gastos_asignados" step="0.01" min="0" value="0.00" required>
             </div>
-            <!-- --- FIN: Campos Interna --- -->
 
-            <!-- --- INICIO: Campos para Ruta EXTERNA (ocultos por defecto) --- -->
-            <div id="campos-externa" style="display: none;">
-                <div class="form-group">
-                    <label for="nombre_transportista">Nombre del Transportista (Obligatorio)</label>
-                    <input type="text" id="nombre_transportista" name="nombre_transportista" placeholder="Ej: Uber, Cliente, Mensajero">
-                </div>
-                <div class="form-group">
-                    <label for="nombre_receptor">Nombre de Quien Recibe (Opcional)</label>
-                    <input type="text" id="nombre_receptor" name="nombre_receptor">
-                </div>
-                <div class="form-group">
-                    <label for="id_receptor">ID de Quien Recibe (Opcional)</label>
-                    <input type="text" id="id_receptor" name="id_receptor" placeholder="Placa, Cédula, etc.">
-                </div>
-            </div>
-            <!-- --- FIN: Campos Externa --- -->
-
-            <hr>
-
-            <button type="submit" class="submit-btn">Crear Hoja de Ruta</button>
+            <button type="submit" class="submit-btn">Crear y Continuar</button>
         </form>
     </div>
 
+    <!-- Columna Derecha: Listado de Hojas de Ruta (Sin filtros de pestañas, con Buscador y Fecha) -->
     <div class="list-container">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h2>Hojas de Ruta Existentes</h2>
-            <!-- Total de resultados -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h2>Hojas de Ruta de la Empresa</h2>
             <span>Mostrando {{ rutas|length }} de {{ pagination.total }}</span>
         </div>
 
-        <!-- === INICIO: Formulario de Búsqueda === -->
-        <!-- <form method="GET" class="search-form">
-            <input type="text" name="search" placeholder="Buscar por # de Ruta o # de Pedido..." value="{{ search_query or '' }}">
-            <button type="submit" class="submit-btn" style="width: auto;">Buscar</button>
-        </form> -->
-        <!-- === FIN: Formulario de Búsqueda === -->
-
-         <!-- Formulario de Búsqueda (se le añade el filtro actual como campo oculto) -->
+        <!-- === Formulario de Búsqueda y Filtro de Fecha Unificado === -->
         <form method="GET" class="search-form">
-            <input type="hidden" name="tipo" value="{{ tipo_filtro_actual }}">
             <input type="text" name="search" placeholder="Buscar por # de Ruta o # de Pedido..." value="{{ search_query or '' }}">
-            <button type="submit" class="submit-btn" style="width: auto;">Buscar</button>
+            <input type="date" name="fecha" value="{{ fecha_filtro or '' }}" title="Filtrar por fecha de creación">
+            <button type="submit" class="submit-btn search-btn" style="width: auto;">Buscar / Filtrar</button>
+            
+            <!-- Botón opcional para limpiar los filtros si hay alguno activo -->
+            {% if search_query or fecha_filtro %}
+                <a href="{{ url_for('gestionar_rutas') }}" class="clear-btn">Limpiar</a>
+            {% endif %}
         </form>
-
-        <!-- === INICIO: NUEVOS BOTONES DE FILTRO === -->
-        <div class="filtros-container">
-            <strong>Filtrar por tipo:</strong>
-            <a href="{{ url_for('gestionar_rutas', tipo='INTERNA', search=search_query) }}"
-               class="{{ 'activo' if tipo_filtro_actual == 'INTERNA' }}">
-               Internas
-            </a>
-            <a href="{{ url_for('gestionar_rutas', tipo='EXTERNA', search=search_query) }}"
-               class="{{ 'activo' if tipo_filtro_actual == 'EXTERNA' }}">
-               Externas
-            </a>
-        </div>
-        <!-- === FIN: NUEVOS BOTONES DE FILTRO === -->
 
         <table>
             <thead>
                 <tr>
                     <th># Ruta</th>
-                    <th>Entrega</th> <!-- Columna cambiada -->
-                    <th>Fecha</th>
+                    <th>Conductor</th>
+                    <th>Fecha Creación</th>
                     <th>Estado</th>
                     <th>Acciones</th>
                 </tr>
@@ -173,118 +113,49 @@
                 <tr>
                     <td><strong>{{ ruta.id }}</strong></td>
                     <td>
-                        <!-- Mostramos la información correcta según el tipo -->
-                        {% if ruta.tipo_entrega == 'INTERNA' %}
-                           <strong>Interna:</strong> {{ ruta.conductor.username if ruta.conductor else 'N/A' }}
-                        {% else %}
-                           <strong>Externa:</strong> {{ ruta.nombre_transportista }}
-                        {% endif %}
+                        <!-- Como todas las rutas listadas son internas, solo mostramos el conductor -->
+                        {{ ruta.conductor.username if ruta.conductor else 'N/A' }}
                     </td>
                     <td>{{ ruta.fecha_creacion | localtime }}</td>
                     <td>
                         <span class="estado estado-{{ ruta.estado }}">{{ ruta.estado.replace('_', ' ') }}</span>
                     </td>
                     <td>
-                        <a href="{{ url_for('detalle_ruta', ruta_id=ruta.id) }}" class="action-link" style="background-color: #337ab7;">Ver Detalle</a>
+                        <a href="{{ url_for('detalle_ruta', ruta_id=ruta.id) }}" class="action-link" style="background-color: #337ab7; display: inline-block; margin-right: 5px;">Ver Detalle</a>
 
-                         <!-- === INICIO: Botón de borrado condicional === -->
                         {% if ruta.estado == 'EN_PREPARACION' %}
-                        <form action="{{ url_for('borrar_ruta', ruta_id=ruta.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('¿Está seguro de que desea eliminar esta hoja de ruta? Esta acción no se puede deshacer.');">
+                        <form action="{{ url_for('borrar_ruta', ruta_id=ruta.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('¿Está seguro de que desea eliminar esta hoja de ruta?');">
                             <button type="submit" class="remove-btn">Borrar</button>
                         </form>
                         {% endif %}
-                        <!-- === FIN: Botón de borrado condicional === -->
                     </td>
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="5" style="text-align: center; padding: 2rem;">No se han creado hojas de ruta todavía.</td>
+                    <td colspan="5" style="text-align: center; padding: 2rem;">No hay hojas de ruta registradas que coincidan con la búsqueda.</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
 
-        <!-- === INICIO: Controles de Paginación === -->
-        <!-- {% if pagination %}
+        <!-- Controles de Paginación Actualizados (Arrastrando filtros de búsqueda y fecha) -->
+        {% if pagination and pagination.pages > 1 %}
         <div class="pagination">
-            <a href="{{ url_for('gestionar_rutas', page=pagination.prev_num, search=search_query) if pagination.has_prev else '#' }}"
-               class="{{ 'disabled' if not pagination.has_prev }}">
-                &laquo; Anterior
-            </a>
-            
-            <span>Página {{ pagination.page }} de {{ pagination.pages }}</span>
-
-            <a href="{{ url_for('gestionar_rutas', page=pagination.next_num, search=search_query) if pagination.has_next else '#' }}"
-               class="{{ 'disabled' if not pagination.has_next }}">
-                Siguiente &raquo;
-            </a>
-        </div>
-        {% endif %} -->
-        <!-- === FIN: Controles de Paginación === -->
-
-       <!-- Controles de Paginación (actualizados para incluir el filtro) -->
-        {% if pagination %}
-        <div class="pagination">
-            <a href="{{ url_for('gestionar_rutas', page=pagination.prev_num, search=search_query, tipo=tipo_filtro_actual) if pagination.has_prev else '#' }}"
+            <a href="{{ url_for('gestionar_rutas', page=pagination.prev_num, search=search_query, fecha=fecha_filtro) if pagination.has_prev else '#' }}"
                class="{{ 'disabled' if not pagination.has_prev }}">
                 &laquo; Anterior
             </a>
             <span>Página {{ pagination.page }} de {{ pagination.pages }}</span>
-            <a href="{{ url_for('gestionar_rutas', page=pagination.next_num, search=search_query, tipo=tipo_filtro_actual) if pagination.has_next else '#' }}"
+            <a href="{{ url_for('gestionar_rutas', page=pagination.next_num, search=search_query, fecha=fecha_filtro) if pagination.has_next else '#' }}"
                class="{{ 'disabled' if not pagination.has_next }}">
                 Siguiente &raquo;
             </a>
         </div>
-        {% endif %} 
+        {% endif %}
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<!-- --- INICIO: Bloque de JavaScript para el formulario dinámico --- -->
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const tipoEntregaSelect = document.getElementById('tipo_entrega');
-    const camposInterna = document.getElementById('campos-interna');
-    const camposExterna = document.getElementById('campos-externa');
-    
-    // Inputs dentro de los divs
-    const conductorInput = document.getElementById('conductor_id');
-    const transportistaInput = document.getElementById('nombre_transportista');
-    const receptorInput = document.getElementById('nombre_receptor');
-    const idReceptorInput = document.getElementById('id_receptor');
-
-    function toggleCampos() {
-        if (tipoEntregaSelect.value === 'INTERNA') {
-            // Mostrar campos internos y hacerlos obligatorios
-            camposInterna.style.display = 'block';
-            conductorInput.required = true;
-            
-            // Ocultar campos externos y quitarles el 'required'
-            camposExterna.style.display = 'none';
-            transportistaInput.required = false;
-            //receptorInput.required = false;
-            //idReceptorInput.required = false;
-
-        } else { // Si es 'EXTERNA'
-            // Ocultar campos internos y quitarles el 'required'
-            camposInterna.style.display = 'none';
-            conductorInput.required = false;
-
-            // Mostrar campos externos y hacerlos obligatorios
-            camposExterna.style.display = 'block';
-            transportistaInput.required = true;
-            //receptorInput.required = true;
-            //idReceptorInput.required = true;
-        }
-    }
-
-    // Añadir el 'listener' al selector
-    tipoEntregaSelect.addEventListener('change', toggleCampos);
-
-    // Ejecutar la función una vez al cargar la página para establecer el estado inicial
-    toggleCampos();
-});
-</script>
-<!-- --- FIN: Bloque de JavaScript --- -->
+<!-- Se eliminó el bloque de JavaScript del toggle dinámico ya que no hay campos condicionales -->
 {% endblock %}
