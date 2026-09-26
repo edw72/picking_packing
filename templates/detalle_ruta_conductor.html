@@ -4,46 +4,25 @@
 
 {% block styles %}
 <style>
-    /* --- Estilos para Tarjetas Colapsables (Acordeones) --- */
-    .collapsible-card {
-        background: white;
-        border-radius: 8px;
-        margin-bottom: 1rem;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        overflow: hidden;
-    }
-    .collapsible-header {
-        background: #f8f9fa;
-        padding: 1rem 1.5rem;
-        cursor: pointer;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border-bottom: 1px solid #eee;
-        user-select: none;
-    }
-    .collapsible-header h2 {
-        margin: 0;
-        font-size: 1.15rem;
-        color: #333;
-    }
-    .collapsible-content {
-        padding: 1.5rem;
-        display: none; /* Colapsado por defecto */
-    }
-    /* Clase activa para abrir el acordeón */
-    .collapsible-card.active .collapsible-content {
-        display: block;
-    }
-    .toggle-icon::after {
-        content: '▼';
-        font-size: 0.8rem;
-        color: #777;
-    }
-    .collapsible-card.active .toggle-icon::after {
-        content: '▲';
-    }
-
+    .card { background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem; }
+    h2, h3 { border-bottom: 1px solid #eee; padding-bottom: 0.5rem; margin-bottom: 1rem; }
+    .orden-card { border: 1px solid #ddd; border-left: 5px solid #337ab7; border-radius: 5px; padding: 1rem; margin-bottom: 1rem; }
+    .orden-header { display: flex; justify-content: space-between; align-items: flex-start; }
+    .orden-header h4 { margin: 0; font-size: 1.1rem; }
+    .estado-ENTREGADO, .estado-ENTREGA_FALLIDA, .estado-INCIDENCIA_ENTREGA { background-color: #5cb85c; color: white; padding: 0.2em 0.5em; border-radius: 4px; font-size: 0.85em; }
+    .estado-ENTREGA_FALLIDA, .estado-INCIDENCIA_ENTREGA { background-color: #d9534f; }
+    .actions-form, .guia-form { margin-top: 1rem; display: flex; gap: 10px; flex-wrap: wrap; align-items: center;}
+    .actions-form select, .actions-form button, .guia-form input, .guia-form button { padding: 8px 12px; border-radius: 5px; border: 1px solid #ccc; }
+    .form-grid { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
+    @media (min-width: 992px) { .form-grid { grid-template-columns: 1fr 2fr; } }
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; font-weight: bold; margin-bottom: 0.5rem; }
+    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #ccc; }
+    .submit-btn { background-color: #337ab7; color: white; border: none; cursor: pointer; padding: 10px 15px;}
+    .finalizar-ruta-btn { background-color: #28a745; color: white; border: none; padding: 15px; font-size: 1.2rem; width: 100%; cursor: pointer; border-radius: 5px; }
+    .finalizar-ruta-btn:disabled { background-color: #ccc; cursor: not-allowed; }
+    .bulto-info { font-size: 0.9em; color: #555; background: #f9f9f9; padding: 0.5rem; border-radius: 4px; margin-top: 0.5rem; }
+    
     /* --- Acordeón Interno por Cliente --- */
     .cliente-group {
         border: 1px solid #ccc;
@@ -77,71 +56,79 @@
         border-bottom: 1px solid #ddd;
     }
 
-    /* --- Elementos de Orden --- */
-    .orden-card {
-        border: 1px solid #ddd;
-        border-left: 5px solid #337ab7;
-        border-radius: 5px;
-        padding: 1rem;
-        margin-bottom: 1rem;
-        background: white;
-    }
-    .orden-header { display: flex; justify-content: space-between; align-items: flex-start; }
-    .orden-header h4 { margin: 0; font-size: 1.1rem; }
-    .estado-ENTREGADO, .estado-ENTREGA_FALLIDA, .estado-INCIDENCIA_ENTREGA { background-color: #5cb85c; color: white; padding: 0.2em 0.5em; border-radius: 4px; font-size: 0.85em; }
-    .estado-ENTREGA_FALLIDA, .estado-INCIDENCIA_ENTREGA { background-color: #d9534f; }
-    
-    /* --- Formulario Unificado --- */
-    .actions-form {
-        margin-top: 1rem;
-        display: flex;
-        flex-direction: column;
-        gap: 0.8rem;
-    }
-    .actions-form select, .actions-form input, .actions-form button {
-        padding: 10px;
-        border-radius: 5px;
-        border: 1px solid #ccc;
-        font-size: 1rem;
-        width: 100%;
-        box-sizing: border-box;
-    }
-    .actions-form button {
-        background-color: #337ab7;
-        color: white;
-        border: none;
-        cursor: pointer;
-        font-weight: bold;
-    }
-    .actions-form button:hover { background-color: #286090; }
-
-    .form-group { margin-bottom: 1rem; }
-    .form-group label { display: block; font-weight: bold; margin-bottom: 0.5rem; }
-    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
-    .submit-btn { background-color: #337ab7; color: white; border: none; cursor: pointer; padding: 12px; width: 100%; font-size: 1.05rem; border-radius: 5px;}
-    .finalizar-ruta-btn { background-color: #28a745; color: white; border: none; padding: 15px; font-size: 1.2rem; width: 100%; cursor: pointer; border-radius: 5px; }
-    .finalizar-ruta-btn:disabled { background-color: #ccc; cursor: not-allowed; }
-    .bulto-info { font-size: 0.9em; color: #555; background: #f9f9f9; padding: 0.5rem; border-radius: 4px; margin-top: 0.5rem; }
-    
     .view-options { margin-bottom: 1rem; background-color: #f0f0f0; padding: 0.8rem; border-radius: 5px; }
     .orden-card.is-completed { border-left-color: #5cb85c; }
     .orden-card.is-failed { border-left-color: #d9534f; }
     .hide-completed .orden-card.is-completed,
     .hide-completed .orden-card.is-failed { display: none; }
-    
+
+    /* --- Estilos para el Resumen Financiero --- */
     .resumen-financiero { text-align: center; }
-    .resumen-financiero .valor { font-size: 1.6rem; font-weight: bold; margin-bottom: 0.3rem; }
-    .resumen-financiero .etiqueta { font-size: 0.85rem; text-transform: uppercase; color: #777; }
-    .resumen-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; }
+    .resumen-financiero .valor { font-size: 1.8rem; font-weight: bold; margin-bottom: 0.5rem; }
+    .resumen-financiero .etiqueta { font-size: 0.9rem; text-transform: uppercase; color: #777; }
+    .resumen-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; }
     .balance-positivo { color: #28a745; }
     .balance-negativo { color: #d9534f; }
+
+    /* --- NUEVOS ESTILOS PARA CLIENTE COMPLETAMENTE ENTREGADO --- */
+    .cliente-group.is-fully-completed .cliente-header {
+        background-color: #dff0d8 !important; /* Verde claro suave */
+        border-left: 5px solid #5cb85c;
+    }
+    .cliente-group.is-fully-completed .cliente-header h3 {
+        color: #3c763d !important; /* Verde oscuro para el texto */
+    }
+
+    /* Ocultar el grupo completo del cliente si la opción de ocultar está activa */
+    .hide-completed .cliente-group.is-fully-completed {
+        display: none;
+    }
+
+    /* --- Estilos para las tarjetas colapsables principales --- */
+    .collapsible-card {
+        background: white;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        overflow: hidden;
+    }
+    .collapsible-header {
+        background: #f8f9fa;
+        padding: 1rem 1.5rem;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid #eee;
+        user-select: none;
+    }
+    .collapsible-header h2 {
+        margin: 0;
+        font-size: 1.15rem;
+        color: #333;
+    }
+    .collapsible-content {
+        padding: 1.5rem;
+        display: none;
+    }
+    .collapsible-card.active .collapsible-content {
+        display: block;
+    }
+    .toggle-icon::after {
+        content: '▼';
+        font-size: 0.8rem;
+        color: #777;
+    }
+    .collapsible-card.active .toggle-icon::after {
+        content: '▲';
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 <a href="{{ url_for('dashboard_conductor') }}" class="back-link" style="display: inline-block; margin-bottom: 1rem;">← Volver a mi Dashboard</a>
 
-<!-- === ACORDEÓN 1: RESUMEN FINANCIERO === -->
+<!-- ACORDEÓN 1: RESUMEN FINANCIERO -->
 <div class="collapsible-card">
     <div class="collapsible-header">
         <h2>Resumen Financiero de la Ruta</h2>
@@ -169,7 +156,7 @@
     </div>
 </div>
 
-<!-- === ACORDEÓN 2: REGISTRAR GASTO === -->
+<!-- ACORDEÓN 2: REGISTRAR GASTO -->
 <div class="collapsible-card">
     <div class="collapsible-header">
         <h2>Registrar Gasto</h2>
@@ -185,7 +172,7 @@
     </div>
 </div>
 
-<!-- === ACORDEÓN 3: REGISTRAR PAGO RECIBIDO === -->
+<!-- ACORDEÓN 3: REGISTRAR PAGO RECIBIDO -->
 <div class="collapsible-card">
     <div class="collapsible-header">
         <h2>Registrar Pago Recibido</h2>
@@ -220,7 +207,7 @@
     </div>
 </div>
 
-<!-- === ACORDEÓN 4: ENTREGAS (ABIERTO POR DEFECTO con clase 'active') === -->
+<!-- ACORDEÓN 4: ENTREGAS -->
 <div class="collapsible-card active">
     <div class="collapsible-header">
         <h2>Órdenes a Entregar ({{ total_ordenes }})</h2>
@@ -232,12 +219,22 @@
         </div>
         
         <div id="lista-entregas">
+            <!-- Bucle Exterior: por cada CLIENTE -->
             {% for cliente, ordenes_del_cliente in clientes_agrupados.items() %}
             
-            <!-- ACORDEÓN INTERNO POR CLIENTE -->
-            <div class="cliente-group">
+            <!-- === CÁLCULO DE ORDENES PENDIENTES DEL CLIENTE === -->
+            {% set pendientes_del_cliente = ordenes_del_cliente|rejectattr('estado', 'in', ['ENTREGADO', 'INCIDENCIA_ENTREGA', 'ENTREGA_FALLIDA'])|list|length %}
+            {% set is_fully_completed = (pendientes_del_cliente == 0) %}
+            
+            <div class="cliente-group {% if is_fully_completed %}is-fully-completed{% endif %}">
                 <div class="cliente-header">
-                    <h3>{{ cliente }} ({{ ordenes_del_cliente|length }} orden/es)</h3>
+                    <h3>
+                        {{ cliente }} ({{ ordenes_del_cliente|length }} orden/es)
+                        <!-- Añadimos un checkmark verde al lado del nombre si ya está listo -->
+                        {% if is_fully_completed %}
+                            <span style="color: #3c763d; margin-left: 5px;">✓</span>
+                        {% endif %}
+                    </h3>
                     <span class="toggle-icon"></span>
                 </div>
                 <div class="cliente-content">
@@ -263,7 +260,7 @@
                             {% for tipo, count in bulto_types.items() %}{{ count }} {{ tipo }}{{ 's' if count > 1 else '' }}{{ ', ' if not loop.last }}{% endfor %}
                         </div>
 
-                        <!-- === FORMULARIO UNIFICADO: GUÍA + NOTA + ESTADO === -->
+                        <!-- Formulario unificado -->
                         {% if orden.estado not in ['ENTREGADO', 'INCIDENCIA_ENTREGA'] %}
                         <form action="{{ url_for('actualizar_estado_orden', orden_id=orden.id) }}" method="POST" class="actions-form">
                             <div style="font-weight: bold; margin-top: 0.5rem;">Confirmar entrega:</div>
@@ -273,15 +270,13 @@
                                 <option value="ENTREGA_FALLIDA">Entrega Fallida</option>
                             </select>
 
-                            <!-- El campo de la guía ahora vive dentro de esta misma acción -->
                             <input type="text" name="guia_encomienda" placeholder="Nº de Guía de Encomienda (Opcional)" value="{{ orden.guia_encomienda or '' }}">
-
                             <textarea name="nota_fallida" class="nota-fallida-input" placeholder="Razón de la falla (obligatorio si falla)" style="display: none; width: 100%; margin-top: 5px;"></textarea>
                             
                             <button type="submit">Guardar y Confirmar</button>
                         </form>
                         {% else %}
-                            <!-- Vista de lectura si ya se gestionó -->
+                            <!-- Vista de lectura -->
                             {% if orden.guia_encomienda %}
                                 <div style="margin-top: 0.5rem; font-size: 0.95em;"><strong>Nº Guía:</strong> {{ orden.guia_encomienda }}</div>
                             {% endif %}
@@ -317,7 +312,7 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // --- 1. LÓGICA DE TARJETAS COLAPSABLES PRINCIPALES ---
+    // 1. Lógica para colapsables principales
     const mainHeaders = document.querySelectorAll('.collapsible-card .collapsible-header');
     mainHeaders.forEach(header => {
         header.addEventListener('click', function() {
@@ -326,7 +321,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // --- 2. LÓGICA DE ACORDEÓN INTERNO POR CLIENTE ---
+    // 2. Lógica para acordeón de clientes
     const clientHeaders = document.querySelectorAll('.cliente-group .cliente-header');
     clientHeaders.forEach(header => {
         header.addEventListener('click', function() {
@@ -335,7 +330,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // --- 3. LÓGICA PARA OCULTAR COMPLETADAS (sin cambios) ---
+    // 3. Lógica para ocultar completadas
     const toggleCheckbox = document.getElementById('toggle-hide-completed');
     const entregasContainer = document.getElementById('lista-entregas');
     const storageKey = 'conductor_hide_completed';
@@ -361,7 +356,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     initializeView();
 
-    // --- 4. LÓGICA CORREGIDA PARA NOTAS DE ENTREGA FALLIDA ---
+    // 4. Notas de entrega fallida
     const allStatusSelects = document.querySelectorAll('.actions-form select[name="estado"]');
     allStatusSelects.forEach(selectElement => {
         selectElement.addEventListener('change', function() {
