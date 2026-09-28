@@ -832,7 +832,8 @@ def crear_orden_desde_factura():
             numero_pedido=data['pedido'],
             cliente_nombre=data['cliente'].get('nombre', 'N/A'),
             cliente_direccion=data['cliente'].get('direccion', 'N/A'),
-            nota_bodega=nota_bodega if nota_bodega else None # <-- AÑADIDO
+            # === MODIFICACIÓN: .upper() para estandarizar las notas automáticas ===
+                nota_bodega=nota_bodega.upper() if nota_bodega else None
         )
         db.session.add(nueva_orden)
         db.session.flush()
@@ -2485,22 +2486,20 @@ def editar_gasto(gasto_id):
 
 @app.route('/orden/<int:orden_id>/editar-nota-bodega', methods=['POST'])
 @login_required
-# Solo permitimos a admin y garantias
 def editar_nota_bodega(orden_id):
-    # --- INICIO: CONTROL DE SEGURIDAD ESTRICTO ---
     if current_user.role not in ['admin', 'garantias']:
         flash('No tiene permisos para modificar las indicaciones de bodega.', 'error')
         return redirect(url_for('dashboard'))
-    # --- FIN: CONTROL DE SEGURIDAD ---
 
     orden = db.get_or_404(Orden, orden_id)
     nueva_nota = request.form.get('nota_bodega', '').strip()
     
-    orden.nota_bodega = nueva_nota if nueva_nota else None
+    # === MODIFICACIÓN: .upper() para guardar siempre en MAYÚSCULAS ===
+    orden.nota_bodega = nueva_nota.upper() if nueva_nota else None
     db.session.commit()
     
     flash(f'Indicación de bodega para la orden #{orden.numero_pedido} actualizada.', 'success')
-    return redirect(url_for('dashboard'))    
+    return redirect(url_for('dashboard'))   
 
 @app.route('/ordenes-retenidas')
 @login_required
