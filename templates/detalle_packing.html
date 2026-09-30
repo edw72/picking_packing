@@ -46,6 +46,14 @@
     <a href="{{ url_for('detalle_packing', orden_id=orden.id, reset='true') }}" class="action-link" style="float: right; background-color: #f0ad4e; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px;" onclick="return confirm('¿Está seguro de que desea reiniciar el conteo de packing para esta orden?');">Reiniciar Conteo</a>
 
     <h1>Verificación de Packing para Pedido #{{ orden.numero_pedido }}</h1>
+
+    <!-- === INICIO: INDICACIÓN DE BODEGA PARA EL EMPACADOR === -->
+    {% if orden.nota_bodega %}
+        <div style="background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; border-left: 5px solid #ffc107; padding: 1.2rem; margin: 1.5rem 0; border-radius: 5px; font-weight: bold; font-size: 1.1rem; line-height: 1.4;">
+            📌 INDICACIÓN DE BODEGA: <span style="text-transform: uppercase;">{{ orden.nota_bodega }}</span>
+        </div>
+    {% endif %}
+    <!-- === FIN: INDICACIÓN DE BODEGA === -->
     
     <form id="scan-form-packing" class="scan-form">
         <input type="text" id="scan-input-packing" class="scan-input" placeholder="Escanear artículo para verificar..." autofocus autocomplete="off">
