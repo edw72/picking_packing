@@ -841,29 +841,53 @@ def crear_orden_desde_factura():
         print(f"Orden #{nueva_orden.numero_pedido} creada con ID {nueva_orden.id}. Añadiendo {len(data['items'])} ítems...")
 
         # 5. Bucle para crear los ítems (CON LA LÓGICA CORREGIDA)
-        for i, item_data in enumerate(data['items']):
-            # --- CORRECCIÓN: Definimos las variables al principio ---
+        # for i, item_data in enumerate(data['items']):
+        #     # --- CORRECCIÓN: Definimos las variables al principio ---
+        #     codigo_item = item_data.get('codigo', '').strip()
+        #     cantidad_solicitada = int(item_data.get('cantidad', 0))
+            
+        #     # Ahora la validación se hace sobre las variables ya creadas
+        #     if not codigo_item or cantidad_solicitada <= 0:
+        #         print(f"  -> Omitiendo ítem #{i+1} por falta de código o cantidad válida.")
+        #         continue 
+
+        #     nuevo_item = ItemOrden(
+        #         orden_id=nueva_orden.id,
+        #         codigo_articulo=codigo_item,
+        #         descripcion_articulo=item_data.get('articulo', 'N/A'),
+        #         cantidad_solicitada=cantidad_solicitada
+        #     )
+
+        #     if codigo_item in CODIGOS_DE_SERVICIO:
+        #         nuevo_item.cantidad_recogida = cantidad_solicitada
+        #         print(f"  -> Añadido ÍTEM DE SERVICIO: {codigo_item} (auto-completado)")
+        #     else:
+        #         nuevo_item.cantidad_recogida = 0
+        #         print(f"  -> Añadido a la sesión: {codigo_item} (Cantidad: {cantidad_solicitada})")
+            
+        #     db.session.add(nuevo_item)
+
+        for item_data in data['items']:
             codigo_item = item_data.get('codigo', '').strip()
             cantidad_solicitada = int(item_data.get('cantidad', 0))
+            if not codigo_item or cantidad_solicitada <= 0: continue
             
-            # Ahora la validación se hace sobre las variables ya creadas
-            if not codigo_item or cantidad_solicitada <= 0:
-                print(f"  -> Omitiendo ítem #{i+1} por falta de código o cantidad válida.")
-                continue 
-
             nuevo_item = ItemOrden(
-                orden_id=nueva_orden.id,
-                codigo_articulo=codigo_item,
-                descripcion_articulo=item_data.get('articulo', 'N/A'),
+                orden_id=nueva_orden.id, 
+                codigo_articulo=codigo_item, 
+                descripcion_articulo=item_data.get('articulo', 'N/A'), 
                 cantidad_solicitada=cantidad_solicitada
             )
-
+            
+            # === MODIFICACIÓN CLAVE: Inicializar picking y packing para servicios ===
             if codigo_item in CODIGOS_DE_SERVICIO:
                 nuevo_item.cantidad_recogida = cantidad_solicitada
-                print(f"  -> Añadido ÍTEM DE SERVICIO: {codigo_item} (auto-completado)")
+                nuevo_item.cantidad_empacada = cantidad_solicitada # <-- AÑADIDO
+                print(f"  -> Añadido ÍTEM DE SERVICIO: {codigo_item} (auto-completado en picking y packing)")
             else:
                 nuevo_item.cantidad_recogida = 0
-                print(f"  -> Añadido a la sesión: {codigo_item} (Cantidad: {cantidad_solicitada})")
+                nuevo_item.cantidad_empacada = 0 # <-- AÑADIDO (Por defecto es 0)
+                print(f"  -> Añadido ÍTEM FÍSICO: {codigo_item} (Cantidad: {cantidad_solicitada})")
             
             db.session.add(nuevo_item)
 
@@ -894,21 +918,54 @@ def retener_orden(orden_id):
     return redirect(url_for('dashboard'))
 
 
-@app.route('/packing/<int:orden_id>', methods=['GET']) # Ya no necesitamos POST aquí
+# @app.route('/packing/<int:orden_id>', methods=['GET']) # Ya no necesitamos POST aquí
+# @login_required
+# def detalle_packing(orden_id):
+#     orden = Orden.query.get_or_404(orden_id)
+#     if orden.estado != 'EMPACADO':
+#         flash('Esta orden no está lista para packing.', 'error')
+#         return redirect(url_for('dashboard_packing'))
+
+#     # Ya no necesitamos manejar la sesión. La vista leerá el estado
+#     # directamente desde la base de datos.
+#     # Al entrar a la pantalla de packing, podríamos querer resetear el conteo,
+#     # por si alguien la dejó a medias y quiere empezar de nuevo.
+#     if request.args.get('reset') == 'true':
+#         for item in orden.items:
+#             # Solo reseteamos los items físicos, no los de servicio
+#             if item.codigo_articulo not in CODIGOS_DE_SERVICIO:
+#                 item.cantidad_empacada = 0
+#         db.session.commit()
+#         flash('Se ha reiniciado el conteo de packing para esta orden.', 'info')
+#         return redirect(url_for('detalle_packing', orden_id=orden.id))
+
+#     return render_template('detalle_packing.html', orden=orden)
+
+@app.route('/packing/<int:orden_id>', methods=['GET'])
 @login_required
 def detalle_packing(orden_id):
-    orden = Orden.query.get_or_404(orden_id)
+    orden = db.get_or_404(Orden, orden_id)
     if orden.estado != 'EMPACADO':
         flash('Esta orden no está lista para packing.', 'error')
         return redirect(url_for('dashboard_packing'))
 
-    # Ya no necesitamos manejar la sesión. La vista leerá el estado
-    # directamente desde la base de datos.
-    # Al entrar a la pantalla de packing, podríamos querer resetear el conteo,
-    # por si alguien la dejó a medias y quiere empezar de nuevo.
+    # === INICIO: LÓGICA DE AUTOCORRECCIÓN EN CALIENTE ===
+    # Si por algún motivo la orden tiene servicios con el conteo de packing en cero,
+    # los actualizamos automáticamente en la base de datos.
+    auto_corregido = False
+    for item in orden.items:
+        if item.codigo_articulo in CODIGOS_DE_SERVICIO and item.cantidad_empacada != item.cantidad_solicitada:
+            item.cantidad_empacada = item.cantidad_solicitada
+            auto_corregido = True
+            print(f"-> Autocorrección: Servicio {item.codigo_articulo} completado en packing para la orden #{orden.id}")
+            
+    if auto_corregido:
+        db.session.commit()
+    # === FIN: LÓGICA DE AUTOCORRECCIÓN ===
+
+    # Lógica para resetear el conteo (con protección para no borrar servicios)
     if request.args.get('reset') == 'true':
         for item in orden.items:
-            # Solo reseteamos los items físicos, no los de servicio
             if item.codigo_articulo not in CODIGOS_DE_SERVICIO:
                 item.cantidad_empacada = 0
         db.session.commit()
@@ -917,8 +974,6 @@ def detalle_packing(orden_id):
 
     return render_template('detalle_packing.html', orden=orden)
 
-
-# En app.py, reemplaza la función finalizar_packing completa por esta:
 
 @app.route('/packing/<int:orden_id>/finalizar', methods=['POST'])
 @login_required
@@ -2529,4 +2584,4 @@ def activar_orden(orden_id):
 # 5. PUNTO DE ENTRADA
 if __name__ == '__main__':
     
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5001)
