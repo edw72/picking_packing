@@ -83,13 +83,16 @@
                         {% if orden.destino %}Editar Destino{% else %}Asignar Destino{% endif %}
                     </a>
                     
-                    <!-- === INICIO: NUEVO FORMULARIO DE ENTREGA DIRECTA === -->
-                    <form action="{{ url_for('entrega_ventanilla_orden', orden_id=orden.id) }}" method="POST" style="display: inline;" 
-                          onsubmit="return confirmarEntregaVentanilla(this, '{{ orden.numero_pedido }}');">
-                        <input type="hidden" name="nombre_recibe" class="nombre-recibe-input">
-                        <button type="submit" class="action-link direct-delivery-btn">Entrega Ventanilla</button>
-                    </form>
-                    <!-- === FIN: NUEVO FORMULARIO === -->
+                    <!-- === INICIO: CAMBIO - Mostrar Entrega Ventanilla SOLO si NO tiene bultos === -->
+                    {% if orden.bultos|length == 0 %}
+                        <form action="{{ url_for('entrega_ventanilla_orden', orden_id=orden.id) }}" method="POST" style="display: inline;" 
+                              onsubmit="return confirmarEntregaVentanilla(this, '{{ orden.numero_pedido }}');">
+                            <input type="hidden" name="nombre_recibe" class="nombre-recibe-input">
+                            <button type="submit" class="action-link direct-delivery-btn">Entrega Ventanilla</button>
+                        </form>
+                    {% endif %}
+                    <!-- === FIN: CAMBIO === -->
+
 
                     <!-- Botón para Corregir Empaque -->
                     <form action="{{ url_for('corregir_empaque_orden', orden_id=orden.id) }}" method="POST" style="display: inline;" 

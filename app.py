@@ -2199,25 +2199,32 @@ def api_escanear_bulto_carga(ruta_id):
 def entrega_ventanilla_orden(orden_id):
     orden = db.get_or_404(Orden, orden_id)
 
-    # --- Verificación de Seguridad ---
+    # 1. Verificación de estado de la orden
     if orden.estado != 'LISTO_PARA_DESPACHO':
         flash(f'Error: La orden #{orden.numero_pedido} no está lista para despacho.', 'error')
         return redirect(url_for('dashboard_despacho'))
 
-    # Obtener el nombre (ahora opcional)
+    # === INICIO: NUEVA VERIFICACIÓN DE SEGURIDAD CONTRA BULTOS ===
+    # Si la orden ya tiene bultos en la base de datos, significa que tiene etiquetas QR impresas.
+    # Por lo tanto, no se permite la entrega directa por ventanilla.
+    if len(orden.bultos) > 0:
+        flash(f'Error de seguridad: La orden #{orden.numero_pedido} tiene bultos creados (etiquetas QR). Debe ser despachada obligatoriamente en una Hoja de Ruta para verificar sus bultos.', 'error')
+        return redirect(url_for('dashboard_despacho'))
+    # === FIN: NUEVA VERIFICACIÓN ---
+
+    # Obtener el nombre opcional
     nombre_recibe = request.form.get('nombre_recibe', '').strip()
 
-    # --- Actualización de la Orden (Lógica Flexible) ---
+    # Actualización de la Orden (Lógica Flexible)
     orden.estado = 'ENTREGADO'
     orden.fecha_entrega_final = datetime.datetime.utcnow()
     
-    # Si se proporcionó un nombre, lo anotamos; de lo contrario, guardamos un texto estándar
     if nombre_recibe:
         orden.nota_entrega = f"Retirado en bodega por: {nombre_recibe}"
     else:
         orden.nota_entrega = "Retirado en bodega"
     
-    # Marcar bultos como verificados de despacho para consistencia del sistema
+    # Marcar bultos como verificados de despacho (aunque en este caso sean 0)
     for bulto in orden.bultos:
         bulto.verificado_despacho = True
 
