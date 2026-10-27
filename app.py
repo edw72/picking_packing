@@ -1,6 +1,7 @@
 # 1. IMPORTACIONES
 import sys
 import os
+import boto3
 
 # Si estamos en Windows, intentamos añadir las rutas de GTK al DLL search path para WeasyPrint
 if sys.platform == 'win32':
@@ -58,6 +59,8 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 login_manager.login_message = "Por favor, inicie sesión para acceder a esta página."
 login_manager.login_message_category = "error"
+
+
 
 def admin_required(f):
     @wraps(f)
@@ -130,6 +133,7 @@ class Orden(db.Model):
     nota_entrega = db.Column(db.Text, nullable=True)
     fecha_entrega_final = db.Column(db.DateTime, nullable=True)
     nota_bodega = db.Column(db.Text, nullable=True)
+    foto_guia_url = db.Column(db.String(500), nullable=True)
     def __repr__(self): return f'<Orden {self.numero_pedido}>'
 
 class User(UserMixin, db.Model):
@@ -2598,6 +2602,80 @@ def activar_orden(orden_id):
         flash('Esta orden no se puede activar.', 'error')
 
     return redirect(url_for('ordenes_retenidas'))
+
+def subir_imagen_a_s3(file_obj, filename_prefix="guia"):
+    """
+    Suba un archivo de imagen al bucket de Amazon S3 y devuelve su URL pública.
+    """
+    if not file_obj:
+        return None
+    
+    aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
+    aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
+    aws_region = os.environ.get('AWS_REGION', 'us-east-1')
+    bucket_name = os.environ.get('S3_BUCKET_NAME')
+
+    if not all([aws_access_key, aws_secret_key, bucket_name]):
+        print("Error: Faltan variables de entorno de AWS S3.")
+        return None
+
+    # Generar un nombre único para la imagen usando el timestamp
+    ext = file_obj.filename.rsplit('.', 1)[1].lower() if '.' in file_obj.filename else 'jpg'
+    unique_filename = f"{filename_prefix}_{int(datetime.datetime.utcnow().timestamp())}.{ext}"
+
+    try:
+        s3_client = boto3.client(
+            's3',
+            aws_access_key_id=aws_access_key,
+            aws_secret_access_key=aws_secret_key,
+            region_name=aws_region
+        )
+        
+        # Subimos el archivo a S3 especificando el tipo de contenido
+        s3_client.upload_fileobj(
+            file_obj,
+            bucket_name,
+            unique_filename,
+            ExtraArgs={'ContentType': file_obj.content_type or 'image/jpeg'}
+        )
+        
+        # Construimos la URL pública de la imagen
+        url = f"https://{bucket_name}.s3.{aws_region}.amazonaws.com/{unique_filename}"
+        return url
+
+    except Exception as e:
+        print(f"Excepción al subir imagen a AWS S3: {e}")
+        return None
+
+
+# 3. Añade la nueva ruta para recibir la foto enviada por el conductor:
+@app.route('/orden/<int:orden_id>/subir-foto-guia', methods=['POST'])
+@login_required
+@conductor_required
+def subir_foto_guia(orden_id):
+    orden = db.get_or_404(Orden, orden_id)
+    foto = request.files.get('foto_guia')
+    
+    if not foto or foto.filename == '':
+        flash('Debe tomar o seleccionar una fotografía antes de enviar.', 'error')
+        return redirect(url_for('detalle_ruta_conductor'))
+
+    # Subimos la foto a Amazon S3
+    url_imagen = subir_imagen_a_s3(foto, filename_prefix=f"guia_pedido_{orden.numero_pedido}")
+    
+    if url_imagen:
+        orden.foto_guia_url = url_imagen
+        orden.estado = 'ENTREGADO'
+        orden.fecha_entrega_final = datetime.datetime.utcnow()
+        if not orden.nota_entrega:
+            orden.nota_entrega = "Comprobante de foto cargado en S3."
+        
+        db.session.commit()
+        flash(f'Fotografía guardada con éxito en AWS S3. Orden #{orden.numero_pedido} marcada como ENTREGADA.', 'success')
+    else:
+        flash('Error al conectar o subir la imagen a Amazon S3. Verifique las credenciales.', 'error')
+
+    return redirect(url_for('detalle_ruta_conductor'))
 
 # 5. PUNTO DE ENTRADA
 if __name__ == '__main__':

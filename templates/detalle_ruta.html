@@ -155,10 +155,20 @@
                     </td>
                     <td><span class="estado-{{ orden.estado }}">{{ orden.estado.replace('_', ' ') }}</span></td>
                     <td>
-                        <!-- Columna de Info Adicional (Guía) Restaurada -->
                         {% if orden.guia_encomienda %}
                             <div class="guia-info">Guía: {{ orden.guia_encomienda }}</div>
-                        {% else %}
+                        {% endif %}
+
+                        <!-- === MOSTRAR ENLACE DE FOTO S3 SI EXISTE === -->
+                        {% if orden.foto_guia_url %}
+                            <div style="margin-top: 4px;">
+                                <a href="{{ orden.foto_guia_url }}" target="_blank" style="font-size: 0.85em; color: #007bff; font-weight: bold; text-decoration: underline;">
+                                    📷 Ver Foto S3
+                                </a>
+                            </div>
+                        {% endif %}
+                        
+                        {% if not orden.guia_encomienda and not orden.foto_guia_url %}
                             -
                         {% endif %}
                     </td>

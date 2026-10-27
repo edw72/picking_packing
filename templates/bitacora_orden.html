@@ -102,34 +102,40 @@
                 <li class="timeline-item" style="padding-bottom:0;">
                     <div class="timeline-title">Entrega Final</div>
                     <span class="timeline-meta">
-                        <!-- === INICIO: LÓGICA DE FECHA MEJORADA === -->
                         {% if orden.fecha_entrega_final %}
-                            <!-- Si tenemos la fecha exacta de la entrega, la mostramos -->
                             {{ orden.fecha_entrega_final | localtime }}
                         {% elif orden.hoja_de_ruta and orden.hoja_de_ruta.fecha_finalizacion %}
-                            <!-- Si no, mostramos la fecha de finalización de la ruta como respaldo -->
                             {{ orden.hoja_de_ruta.fecha_finalizacion | localtime }}
-                        {% elif orden.estado in ['DESPACHADO', 'ENTREGADO', 'ENTREGA_FALLIDA', 'INCIDENCIA_ENTREGA'] %}
-                            En proceso...
                         {% else %}
                             Pendiente
                         {% endif %}
-                        <!-- === FIN: LÓGICA DE FECHA MEJORADA === -->
                     </span>
                     
-                    <!-- Mostramos el resultado de la entrega -->
                     {% if orden.estado == 'ENTREGADO' %}
                         <div class="status-log status-log-success">
                             <strong>Resultado:</strong> La orden fue entregada con éxito.
+                            
+                            <!-- === ENLACE A FOTO S3 === -->
+                            {% if orden.foto_guia_url %}
+                                <div style="margin-top: 8px;">
+                                    <a href="{{ orden.foto_guia_url }}" target="_blank" style="color: #007bff; font-weight: bold; text-decoration: underline;">
+                                        📷 Ver Foto de Comprobante en Amazon S3
+                                    </a>
+                                </div>
+                            {% endif %}
                         </div>
                     {% elif orden.estado in ['ENTREGA_FALLIDA', 'INCIDENCIA_ENTREGA'] %}
                         <div class="status-log status-log-failure">
                             <strong>Resultado:</strong> Hubo una incidencia en la entrega. <br>
                             <strong>Nota del conductor:</strong> <em>"{{ orden.nota_entrega }}"</em>
-                        </div>
-                    {% elif orden.estado == 'CANCELADA' %}
-                         <div class="status-log status-log-failure">
-                            <strong>Resultado:</strong> La orden fue cancelada.
+                            
+                            {% if orden.foto_guia_url %}
+                                <div style="margin-top: 8px;">
+                                    <a href="{{ orden.foto_guia_url }}" target="_blank" style="color: #d9534f; font-weight: bold; text-decoration: underline;">
+                                        📷 Ver Foto Adjunta en Amazon S3
+                                    </a>
+                                </div>
+                            {% endif %}
                         </div>
                     {% endif %}
                 </li>
