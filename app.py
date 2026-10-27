@@ -1787,15 +1787,20 @@ def agregar_ordenes_a_ruta(ruta_id):
 @login_required
 @logistica_required
 def quitar_orden_de_ruta(orden_id):
-    orden = Orden.query.get_or_404(orden_id)
+    orden = db.get_or_404(Orden, orden_id)
     ruta_id_actual = orden.hoja_de_ruta_id
 
     if ruta_id_actual is None:
         flash('Esta orden no está asignada a ninguna ruta.', 'error')
-        return redirect(url_for('gestionar_rutas')) # Redirigir a la vista general si hay un problema
+        return redirect(url_for('gestionar_rutas'))
 
-    # Simplemente "liberamos" la orden
+    # Liberamos la orden
     orden.hoja_de_ruta_id = None
+    
+    # === AÑADIDO: Reiniciamos verificación de bultos por seguridad ===
+    for bulto in orden.bultos:
+        bulto.verificado_despacho = False
+
     db.session.commit()
     
     flash(f'La orden #{orden.numero_pedido} ha sido quitada de la ruta.', 'success')
@@ -2388,14 +2393,20 @@ def reenrutar_orden(orden_id):
         flash('Esta orden no se puede re-enrutar desde su estado actual.', 'error')
         return redirect(url_for('gestionar_entregas_fallidas'))
 
-    # "Liberamos" la orden de su hoja de ruta anterior y la devolvemos a la sala de espera
+    # 1. Liberamos la orden de su hoja de ruta anterior y la devolvemos a la sala de espera
     orden.hoja_de_ruta_id = None
     orden.estado = 'LISTO_PARA_DESPACHO'
-    orden.nota_entrega = f"[Re-enrutada por {current_user.username}] " + orden.nota_entrega
+    orden.nota_entrega = f"[Re-enrutada por {current_user.username}] " + (orden.nota_entrega or '')
     
+    # === INICIO: CAMBIO CLAVE ===
+    # 2. Reiniciamos el estado de verificación de TODOS sus bultos para exigir nuevo escaneo
+    for bulto in orden.bultos:
+        bulto.verificado_despacho = False
+    # === FIN: CAMBIO CLAVE ===
+
     db.session.commit()
     
-    flash(f'La orden #{orden.numero_pedido} ha sido devuelta a la lista de "Despacho" para ser re-enrutada.', 'success')
+    flash(f'La orden #{orden.numero_pedido} ha sido devuelta a Despacho y sus bultos están nuevamente PENDIENTES de escaneo.', 'success')
     return redirect(url_for('gestionar_entregas_fallidas'))
 
 
