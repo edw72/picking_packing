@@ -6,6 +6,34 @@
 <style>
     .galeria-header { margin-bottom: 1.5rem; }
     
+    /* --- Botones de Período --- */
+    .periodo-filtros {
+        margin-bottom: 1.5rem;
+        padding: 0.8rem 1rem;
+        background-color: #f8f9fa;
+        border-radius: 6px;
+        border: 1px solid #e9ecef;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+    .btn-periodo {
+        text-decoration: none;
+        padding: 6px 14px;
+        border-radius: 4px;
+        color: #007bff;
+        border: 1px solid #007bff;
+        font-size: 0.9em;
+        font-weight: 500;
+        background-color: white;
+    }
+    .btn-periodo.activo {
+        background-color: #007bff;
+        color: white;
+        font-weight: bold;
+    }
+
     /* --- Barra de Búsqueda y Filtros --- */
     .search-form { display: flex; gap: 10px; margin-bottom: 2rem; flex-wrap: wrap; }
     .search-form input[type="text"] { flex-grow: 2; min-width: 200px; padding: 0.7rem; border-radius: 5px; border: 1px solid #ccc; }
@@ -13,7 +41,7 @@
     .search-btn { padding: 0 20px; background-color: #337ab7; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
     .clear-btn { background-color: #6c757d; color: white; line-height: 2.3rem; text-decoration: none; padding: 0 15px; border-radius: 5px; text-align: center; }
 
-    /* --- Cuadrícula de Tarjetas (Grid) --- */
+    /* --- Cuadrícula de Tarjetas --- */
     .comprobantes-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -47,26 +75,11 @@
         transition: transform 0.3s;
     }
 
-    .img-container:hover img {
-        transform: scale(1.03);
-    }
+    .img-container:hover img { transform: scale(1.03); }
 
-    .card-body {
-        padding: 1rem;
-        flex-grow: 1;
-    }
-
-    .card-body h3 {
-        margin: 0 0 0.5rem 0;
-        font-size: 1.1rem;
-        color: #337ab7;
-    }
-
-    .card-body p {
-        margin: 0.3rem 0;
-        font-size: 0.9em;
-        color: #555;
-    }
+    .card-body { padding: 1rem; flex-grow: 1; }
+    .card-body h3 { margin: 0 0 0.5rem 0; font-size: 1.1rem; color: #337ab7; }
+    .card-body p { margin: 0.3rem 0; font-size: 0.9em; color: #555; }
 
     .card-actions {
         padding: 0.8rem 1rem;
@@ -77,39 +90,20 @@
         gap: 0.5rem;
     }
 
-    /* --- Botón WhatsApp --- */
     .whatsapp-btn {
-        background-color: #25D366;
-        color: white;
-        text-decoration: none;
-        padding: 8px 12px;
-        border-radius: 5px;
-        text-align: center;
-        font-weight: bold;
-        font-size: 0.9em;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
+        background-color: #25D366; color: white; text-decoration: none;
+        padding: 8px 12px; border-radius: 5px; text-align: center;
+        font-weight: bold; font-size: 0.9em; display: flex; align-items: center;
+        justify-content: center; gap: 6px;
     }
     .whatsapp-btn:hover { background-color: #128C7E; }
 
-    .btn-group-secondary {
-        display: flex;
-        gap: 5px;
-    }
+    .btn-group-secondary { display: flex; gap: 5px; }
 
     .btn-secondary-action {
-        flex: 1;
-        padding: 6px 10px;
-        font-size: 0.82em;
-        border-radius: 4px;
-        border: 1px solid #ccc;
-        background-color: #fff;
-        cursor: pointer;
-        text-align: center;
-        text-decoration: none;
-        color: #333;
+        flex: 1; padding: 6px 10px; font-size: 0.82em; border-radius: 4px;
+        border: 1px solid #ccc; background-color: #fff; cursor: pointer;
+        text-align: center; text-decoration: none; color: #333;
     }
     .btn-secondary-action:hover { background-color: #e9ecef; }
 
@@ -135,13 +129,23 @@
     {% endfor %} {% endif %}
 {% endwith %}
 
-<!-- Buscador y Filtro de Fecha -->
+<!-- === BOTONES DE FILTRO DE PERÍODO === -->
+<div class="periodo-filtros">
+    <strong style="margin-right: 5px; font-size: 0.95em;">Mostrar:</strong>
+    <a href="{{ url_for('galeria_comprobantes', periodo='hoy', search=search_query) }}" class="btn-periodo {{ 'activo' if periodo_actual == 'hoy' }}">Hoy</a>
+    <a href="{{ url_for('galeria_comprobantes', periodo='semana', search=search_query) }}" class="btn-periodo {{ 'activo' if periodo_actual == 'semana' }}">Últimos 7 días</a>
+    <a href="{{ url_for('galeria_comprobantes', periodo='mes', search=search_query) }}" class="btn-periodo {{ 'activo' if periodo_actual == 'mes' }}">Este Mes</a>
+    <a href="{{ url_for('galeria_comprobantes', periodo='todos', search=search_query) }}" class="btn-periodo {{ 'activo' if periodo_actual == 'todos' }}">Ver Todos</a>
+</div>
+
+<!-- Buscador por Texto y Fecha Específica -->
 <form method="GET" class="search-form">
+    <input type="hidden" name="periodo" value="{{ periodo_actual }}">
     <input type="text" name="search" placeholder="Buscar por # de Pedido o Cliente..." value="{{ search_query or '' }}">
-    <input type="date" name="fecha" value="{{ fecha_filtro or '' }}" title="Filtrar por fecha de entrega">
+    <input type="date" name="fecha" value="{{ fecha_filtro or '' }}" title="Filtrar por fecha exacta">
     <button type="submit" class="search-btn">Buscar</button>
     {% if search_query or fecha_filtro %}
-        <a href="{{ url_for('galeria_comprobantes') }}" class="clear-btn">Limpiar</a>
+        <a href="{{ url_for('galeria_comprobantes', periodo=periodo_actual) }}" class="clear-btn">Limpiar Búsqueda</a>
     {% endif %}
 </form>
 
@@ -165,7 +169,6 @@
             {% endif %}
         </div>
         <div class="card-actions">
-            <!-- Construcción del enlace para WhatsApp -->
             {% set msj_wa = "Hola " ~ orden.cliente_nombre ~ ", le compartimos el comprobante de envío de su pedido #" ~ orden.numero_pedido ~ ": " ~ orden.foto_guia_url %}
             <a href="https://api.whatsapp.com/send?text={{ msj_wa | urlencode }}" target="_blank" class="whatsapp-btn">
                 <span>📲 Compartir por WhatsApp</span>
@@ -187,12 +190,12 @@
 <!-- Paginación -->
 {% if pagination and pagination.pages > 1 %}
 <div class="pagination">
-    <a href="{{ url_for('galeria_comprobantes', page=pagination.prev_num, search=search_query, fecha=fecha_filtro) if pagination.has_prev else '#' }}"
+    <a href="{{ url_for('galeria_comprobantes', page=pagination.prev_num, search=search_query, fecha=fecha_filtro, periodo=periodo_actual) if pagination.has_prev else '#' }}"
        class="{{ 'disabled' if not pagination.has_prev }}">
         &laquo; Anterior
     </a>
     <span>Página {{ pagination.page }} de {{ pagination.pages }}</span>
-    <a href="{{ url_for('galeria_comprobantes', page=pagination.next_num, search=search_query, fecha=fecha_filtro) if pagination.has_next else '#' }}"
+    <a href="{{ url_for('galeria_comprobantes', page=pagination.next_num, search=search_query, fecha=fecha_filtro, periodo=periodo_actual) if pagination.has_next else '#' }}"
        class="{{ 'disabled' if not pagination.has_next }}">
         Siguiente &raquo;
     </a>
@@ -201,7 +204,7 @@
 
 {% else %}
 <div class="card" style="text-align: center; padding: 3rem; background: white; border-radius: 8px;">
-    <p style="font-size: 1.1em; color: #666;">No se encontraron comprobantes de fotografía que coincidan con la búsqueda.</p>
+    <p style="font-size: 1.1em; color: #666;">No se encontraron comprobantes para el período seleccionado.</p>
 </div>
 {% endif %}
 
@@ -209,7 +212,6 @@
 
 {% block scripts %}
 <script>
-    // Función interactiva para copiar la URL de S3 directamente al portapapeles
     function copiarEnlace(url, btnElement) {
         navigator.clipboard.writeText(url).then(() => {
             const originalText = btnElement.textContent;

@@ -2677,8 +2677,6 @@ def subir_foto_guia(orden_id):
 
     return redirect(url_for('detalle_ruta_conductor'))
 
-    # En app.py, añade esta nueva ruta
-
 @app.route('/comprobantes')
 @login_required
 @logistica_required
@@ -2686,22 +2684,42 @@ def galeria_comprobantes():
     page = request.args.get('page', 1, type=int)
     search_query = request.args.get('search', '').strip()
     fecha_filtro = request.args.get('fecha', '').strip()
-    COMPROBANTES_POR_PAGINA = 24 # 24 tarjetas por página para una cuadrícula uniforme
+    
+    # === PERÍODO POR DEFECTO: 'hoy' ===
+    periodo = request.args.get('periodo', 'hoy')
+    COMPROBANTES_POR_PAGINA = 24
 
-    # 1. Filtramos solo las órdenes que TIENEN foto de guía cargada
     query_base = db.select(Orden).where(Orden.foto_guia_url.isnot(None))
+    hoy = datetime.date.today()
 
-    # 2. Aplicamos filtro de fecha (si el usuario seleccionó un día)
+    # --- LÓGICA DE FILTRADO POR FECHA / PERÍODO ---
     if fecha_filtro:
+        # 1. Si el usuario selecciona un día específico en el calendario, tiene prioridad
         try:
             fecha_dt = datetime.datetime.strptime(fecha_filtro, '%Y-%m-%d').date()
             inicio_dia = datetime.datetime.combine(fecha_dt, datetime.time.min)
             fin_dia = datetime.datetime.combine(fecha_dt, datetime.time.max)
             query_base = query_base.where(Orden.fecha_entrega_final.between(inicio_dia, fin_dia))
+            periodo = 'custom'
         except ValueError:
             pass
+    elif periodo == 'hoy':
+        # Muestra comprobantes desde el inicio del día de hoy
+        inicio_hoy = datetime.datetime.combine(hoy, datetime.time.min)
+        query_base = query_base.where(Orden.fecha_entrega_final >= inicio_hoy)
+    elif periodo == 'semana':
+        # Muestra comprobantes de los últimos 7 días
+        inicio_semana = datetime.datetime.combine(hoy - datetime.timedelta(days=6), datetime.time.min)
+        query_base = query_base.where(Orden.fecha_entrega_final >= inicio_semana)
+    elif periodo == 'mes':
+        # Muestra comprobantes desde el primer día de este mes
+        inicio_mes = datetime.datetime(hoy.year, hoy.month, 1)
+        query_base = query_base.where(Orden.fecha_entrega_final >= inicio_mes)
+    elif periodo == 'todos':
+        # No se aplica filtro de fecha para ver todo el historial
+        pass
 
-    # 3. Aplicamos filtro de texto (por número de pedido o nombre del cliente)
+    # --- BÚSQUEDA POR TEXTO ---
     if search_query:
         query_base = query_base.where(
             or_(
@@ -2710,10 +2728,8 @@ def galeria_comprobantes():
             )
         )
 
-    # Ordenamos por las fotos entregadas más recientemente
     query_base = query_base.order_by(Orden.fecha_entrega_final.desc())
 
-    # Paginación
     pagination = db.paginate(query_base, page=page, per_page=COMPROBANTES_POR_PAGINA, error_out=False)
     ordenes = pagination.items
 
@@ -2722,7 +2738,8 @@ def galeria_comprobantes():
         ordenes=ordenes,
         pagination=pagination,
         search_query=search_query,
-        fecha_filtro=fecha_filtro
+        fecha_filtro=fecha_filtro,
+        periodo_actual=periodo # Pasamos el período activo a la plantilla
     )
 
 # 5. PUNTO DE ENTRADA
