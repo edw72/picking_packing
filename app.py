@@ -2677,6 +2677,54 @@ def subir_foto_guia(orden_id):
 
     return redirect(url_for('detalle_ruta_conductor'))
 
+    # En app.py, añade esta nueva ruta
+
+@app.route('/comprobantes')
+@login_required
+@logistica_required
+def galeria_comprobantes():
+    page = request.args.get('page', 1, type=int)
+    search_query = request.args.get('search', '').strip()
+    fecha_filtro = request.args.get('fecha', '').strip()
+    COMPROBANTES_POR_PAGINA = 24 # 24 tarjetas por página para una cuadrícula uniforme
+
+    # 1. Filtramos solo las órdenes que TIENEN foto de guía cargada
+    query_base = db.select(Orden).where(Orden.foto_guia_url.isnot(None))
+
+    # 2. Aplicamos filtro de fecha (si el usuario seleccionó un día)
+    if fecha_filtro:
+        try:
+            fecha_dt = datetime.datetime.strptime(fecha_filtro, '%Y-%m-%d').date()
+            inicio_dia = datetime.datetime.combine(fecha_dt, datetime.time.min)
+            fin_dia = datetime.datetime.combine(fecha_dt, datetime.time.max)
+            query_base = query_base.where(Orden.fecha_entrega_final.between(inicio_dia, fin_dia))
+        except ValueError:
+            pass
+
+    # 3. Aplicamos filtro de texto (por número de pedido o nombre del cliente)
+    if search_query:
+        query_base = query_base.where(
+            or_(
+                Orden.numero_pedido.ilike(f'%{search_query}%'),
+                Orden.cliente_nombre.ilike(f'%{search_query}%')
+            )
+        )
+
+    # Ordenamos por las fotos entregadas más recientemente
+    query_base = query_base.order_by(Orden.fecha_entrega_final.desc())
+
+    # Paginación
+    pagination = db.paginate(query_base, page=page, per_page=COMPROBANTES_POR_PAGINA, error_out=False)
+    ordenes = pagination.items
+
+    return render_template(
+        'galeria_comprobantes.html',
+        ordenes=ordenes,
+        pagination=pagination,
+        search_query=search_query,
+        fecha_filtro=fecha_filtro
+    )
+
 # 5. PUNTO DE ENTRADA
 if __name__ == '__main__':
     
