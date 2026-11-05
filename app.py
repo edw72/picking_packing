@@ -156,6 +156,7 @@ class ItemOrden(db.Model):
     tiene_incidencia = db.Column(db.Boolean, default=False, nullable=False)
     tipo_incidencia = db.Column(db.String(50), nullable=True)
     nota_incidencia = db.Column(db.Text, nullable=True)
+    ubicacion = db.Column(db.String(100), nullable=True)
     def __repr__(self): return f'<Item {self.codigo_articulo} de Orden {self.orden_id}>'
 
 class IncidenciaHistorial(db.Model):
