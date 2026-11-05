@@ -1375,27 +1375,31 @@ def gestionar_rutas():
 @login_required
 @admin_required
 def reporte_operarios():
-    # --- Lógica de Filtro de Fechas ---
     periodo = request.args.get('periodo', 'semana')
-    hoy = datetime.datetime.utcnow().date()
-    fecha_inicio = None
-    if periodo == 'hoy':
-        fecha_inicio = datetime.datetime.combine(hoy, datetime.time.min)
-    elif periodo == 'mes':
-        fecha_inicio = datetime.datetime(hoy.year, hoy.month, 1)
-    else: # Por defecto 'semana'
-        fecha_inicio = datetime.datetime.combine(hoy - timedelta(days=6), datetime.time.min)
+    
+    # === AJUSTE DE ZONA HORARIA DE COSTA RICA ===
+    tz_cr = pytz.timezone('America/Costa_Rica')
+    ahora_cr = datetime.datetime.now(tz_cr)
+    hoy_cr = ahora_cr.date()
 
-    # --- Lógica de compatibilidad de Base de Datos ---
+    if periodo == 'hoy':
+        inicio_cr = tz_cr.localize(datetime.datetime.combine(hoy_cr, datetime.time.min))
+        fecha_inicio = inicio_cr.astimezone(pytz.utc).replace(tzinfo=None)
+    elif periodo == 'mes':
+        inicio_mes_cr = tz_cr.localize(datetime.datetime(hoy_cr.year, hoy_cr.month, 1, 0, 0, 0))
+        fecha_inicio = inicio_mes_cr.astimezone(pytz.utc).replace(tzinfo=None)
+    else: # Por defecto 'semana' (últimos 7 días)
+        inicio_semana_cr = tz_cr.localize(datetime.datetime.combine(hoy_cr - timedelta(days=6), datetime.time.min))
+        fecha_inicio = inicio_semana_cr.astimezone(pytz.utc).replace(tzinfo=None)
+
     dialect_name = db.engine.dialect.name
     if dialect_name == 'postgresql':
         func_diff_seconds_picking = func.extract('epoch', Orden.fecha_fin_picking) - func.extract('epoch', Orden.fecha_inicio_picking)
         func_diff_seconds_packing = func.extract('epoch', Orden.fecha_fin_packing) - func.extract('epoch', Orden.fecha_fin_picking)
-    else: # SQLite
+    else:
         func_diff_seconds_picking = func.strftime('%s', Orden.fecha_fin_picking) - func.strftime('%s', Orden.fecha_inicio_picking)
         func_diff_seconds_packing = func.strftime('%s', Orden.fecha_fin_packing) - func.strftime('%s', Orden.fecha_fin_picking)
     
-    # --- Subconsulta 1: KPIs de PICKING ---
     kpis_picking = db.session.query(
         LotePicking.operario_id,
         func.count(LotePicking.id).label('lotes_completados'),
@@ -1408,7 +1412,6 @@ def reporte_operarios():
         Orden.fecha_fin_picking >= fecha_inicio
     ).group_by(LotePicking.operario_id).subquery()
 
-    # --- Subconsulta 2: KPIs de ITEMS ---
     kpis_items = db.session.query(
         LotePicking.operario_id,
         func.sum(ItemOrden.cantidad_recogida).label('items_recogidos'),
@@ -1419,7 +1422,6 @@ def reporte_operarios():
         Orden.fecha_fin_picking >= fecha_inicio
     ).group_by(LotePicking.operario_id).subquery()
 
-    # --- Subconsulta 3: KPIs de PACKING ---
     kpis_packing = db.session.query(
         Orden.packer_id,
         func.count(Orden.id).label('ordenes_empacadas'),
@@ -1431,7 +1433,6 @@ def reporte_operarios():
         Orden.fecha_fin_packing >= fecha_inicio
     ).group_by(Orden.packer_id).subquery()
 
-    # --- Consulta Principal: Unir TODO con la tabla de Usuarios ---
     reporte_data = db.session.query(
         User,
         kpis_picking.c.lotes_completados,
@@ -1451,6 +1452,7 @@ def reporte_operarios():
                            reporte_data=reporte_data,
                            periodo_actual=periodo,
                            fecha_inicio=fecha_inicio)
+
 
 @app.route('/incidencias')
 @login_required
@@ -1538,27 +1540,31 @@ def confirmar_devolucion(orden_id):
 @admin_required
 def api_reporte_rendimiento_operarios():
     try:
-        # --- Lógica de Filtro de Fechas ---
         periodo = request.args.get('periodo', 'semana')
-        hoy = datetime.datetime.utcnow().date()
-        fecha_inicio = None
-        if periodo == 'hoy':
-            fecha_inicio = datetime.datetime.combine(hoy, datetime.time.min)
-        elif periodo == 'mes':
-            fecha_inicio = datetime.datetime(hoy.year, hoy.month, 1)
-        else: # 'semana'
-            fecha_inicio = datetime.datetime.combine(hoy - timedelta(days=6), datetime.time.min)
+        
+        # === AJUSTE DE ZONA HORARIA DE COSTA RICA ===
+        tz_cr = pytz.timezone('America/Costa_Rica')
+        ahora_cr = datetime.datetime.now(tz_cr)
+        hoy_cr = ahora_cr.date()
 
-        # --- Lógica de compatibilidad de Base de Datos ---
+        if periodo == 'hoy':
+            inicio_cr = tz_cr.localize(datetime.datetime.combine(hoy_cr, datetime.time.min))
+            fecha_inicio = inicio_cr.astimezone(pytz.utc).replace(tzinfo=None)
+        elif periodo == 'mes':
+            inicio_mes_cr = tz_cr.localize(datetime.datetime(hoy_cr.year, hoy_cr.month, 1, 0, 0, 0))
+            fecha_inicio = inicio_mes_cr.astimezone(pytz.utc).replace(tzinfo=None)
+        else: # 'semana'
+            inicio_semana_cr = tz_cr.localize(datetime.datetime.combine(hoy_cr - timedelta(days=6), datetime.time.min))
+            fecha_inicio = inicio_semana_cr.astimezone(pytz.utc).replace(tzinfo=None)
+
         dialect_name = db.engine.dialect.name
         if dialect_name == 'postgresql':
             func_diff_seconds_picking = func.extract('epoch', Orden.fecha_fin_picking) - func.extract('epoch', Orden.fecha_inicio_picking)
             func_diff_seconds_packing = func.extract('epoch', Orden.fecha_fin_packing) - func.extract('epoch', Orden.fecha_fin_picking)
-        else: # SQLite
+        else:
             func_diff_seconds_picking = func.strftime('%s', Orden.fecha_fin_picking) - func.strftime('%s', Orden.fecha_inicio_picking)
             func_diff_seconds_packing = func.strftime('%s', Orden.fecha_fin_packing) - func.strftime('%s', Orden.fecha_fin_picking)
 
-        # --- Subconsultas (idénticas a la otra ruta, pero autocontenidas) ---
         kpis_picking = db.session.query(
             LotePicking.operario_id,
             func.count(LotePicking.id).label('lotes_completados'),
@@ -1591,7 +1597,6 @@ def api_reporte_rendimiento_operarios():
             Orden.fecha_fin_packing >= fecha_inicio
         ).group_by(Orden.packer_id).subquery()
         
-        # --- Consulta Principal ---
         reporte_data = db.session.query(
             User,
             kpis_picking.c.lotes_completados,
@@ -1607,7 +1612,6 @@ def api_reporte_rendimiento_operarios():
             kpis_packing, User.id == kpis_packing.c.packer_id
         ).filter(User.role == 'operario').order_by(User.username).all()
         
-        # --- Procesar Datos para JSON ---
         json_data = []
         for user, lotes, tiempo_pick, items, ordenes_pack, tiempo_pack in reporte_data:
             json_data.append({
@@ -2677,6 +2681,8 @@ def subir_foto_guia(orden_id):
 
     return redirect(url_for('detalle_ruta_conductor'))
 
+# En app.py, reemplaza la función galeria_comprobantes por esta versión:
+
 @app.route('/comprobantes')
 @login_required
 @logistica_required
@@ -2684,39 +2690,58 @@ def galeria_comprobantes():
     page = request.args.get('page', 1, type=int)
     search_query = request.args.get('search', '').strip()
     fecha_filtro = request.args.get('fecha', '').strip()
-    
-    # === PERÍODO POR DEFECTO: 'hoy' ===
     periodo = request.args.get('periodo', 'hoy')
     COMPROBANTES_POR_PAGINA = 24
 
     query_base = db.select(Orden).where(Orden.foto_guia_url.isnot(None))
-    hoy = datetime.date.today()
 
-    # --- LÓGICA DE FILTRADO POR FECHA / PERÍODO ---
+    # === INICIO: CONFIGURACIÓN DE ZONA HORARIA DE COSTA RICA (UTC-6) ===
+    tz_cr = pytz.timezone('America/Costa_Rica')
+    ahora_cr = datetime.datetime.now(tz_cr)
+    hoy_cr = ahora_cr.date()
+    # === FIN: CONFIGURACIÓN ===
+
+    # --- LÓGICA DE FILTRADO CON CONVERSIÓN A UTC PARA LA BASE DE DATOS ---
     if fecha_filtro:
-        # 1. Si el usuario selecciona un día específico en el calendario, tiene prioridad
+        # 1. Si el usuario selecciona una fecha específica en el calendario
         try:
             fecha_dt = datetime.datetime.strptime(fecha_filtro, '%Y-%m-%d').date()
-            inicio_dia = datetime.datetime.combine(fecha_dt, datetime.time.min)
-            fin_dia = datetime.datetime.combine(fecha_dt, datetime.time.max)
-            query_base = query_base.where(Orden.fecha_entrega_final.between(inicio_dia, fin_dia))
+            inicio_cr = tz_cr.localize(datetime.datetime.combine(fecha_dt, datetime.time.min))
+            fin_cr = tz_cr.localize(datetime.datetime.combine(fecha_dt, datetime.time.max))
+            
+            # Convertimos el rango de Costa Rica a UTC para consultar la BD
+            inicio_utc = inicio_cr.astimezone(pytz.utc).replace(tzinfo=None)
+            fin_utc = fin_cr.astimezone(pytz.utc).replace(tzinfo=None)
+            
+            query_base = query_base.where(Orden.fecha_entrega_final.between(inicio_utc, fin_utc))
             periodo = 'custom'
         except ValueError:
             pass
+
     elif periodo == 'hoy':
-        # Muestra comprobantes desde el inicio del día de hoy
-        inicio_hoy = datetime.datetime.combine(hoy, datetime.time.min)
-        query_base = query_base.where(Orden.fecha_entrega_final >= inicio_hoy)
+        # 2. 'Hoy' en Costa Rica: desde las 00:00:00 hasta las 23:59:59 CR
+        inicio_cr = tz_cr.localize(datetime.datetime.combine(hoy_cr, datetime.time.min))
+        fin_cr = tz_cr.localize(datetime.datetime.combine(hoy_cr, datetime.time.max))
+        
+        inicio_utc = inicio_cr.astimezone(pytz.utc).replace(tzinfo=None)
+        fin_utc = fin_cr.astimezone(pytz.utc).replace(tzinfo=None)
+        
+        query_base = query_base.where(Orden.fecha_entrega_final.between(inicio_utc, fin_utc))
+
     elif periodo == 'semana':
-        # Muestra comprobantes de los últimos 7 días
-        inicio_semana = datetime.datetime.combine(hoy - datetime.timedelta(days=6), datetime.time.min)
-        query_base = query_base.where(Orden.fecha_entrega_final >= inicio_semana)
+        # 3. 'Últimos 7 días' en Costa Rica
+        inicio_semana_cr = tz_cr.localize(datetime.datetime.combine(hoy_cr - datetime.timedelta(days=6), datetime.time.min))
+        inicio_semana_utc = inicio_semana_cr.astimezone(pytz.utc).replace(tzinfo=None)
+        query_base = query_base.where(Orden.fecha_entrega_final >= inicio_semana_utc)
+
     elif periodo == 'mes':
-        # Muestra comprobantes desde el primer día de este mes
-        inicio_mes = datetime.datetime(hoy.year, hoy.month, 1)
-        query_base = query_base.where(Orden.fecha_entrega_final >= inicio_mes)
+        # 4. 'Este Mes' en Costa Rica: desde el día 1 del mes actual
+        inicio_mes_cr = tz_cr.localize(datetime.datetime(hoy_cr.year, hoy_cr.month, 1, 0, 0, 0))
+        inicio_mes_utc = inicio_mes_cr.astimezone(pytz.utc).replace(tzinfo=None)
+        query_base = query_base.where(Orden.fecha_entrega_final >= inicio_mes_utc)
+
     elif periodo == 'todos':
-        # No se aplica filtro de fecha para ver todo el historial
+        # Ver todo el historial sin restricción de fecha
         pass
 
     # --- BÚSQUEDA POR TEXTO ---
@@ -2739,7 +2764,7 @@ def galeria_comprobantes():
         pagination=pagination,
         search_query=search_query,
         fecha_filtro=fecha_filtro,
-        periodo_actual=periodo # Pasamos el período activo a la plantilla
+        periodo_actual=periodo
     )
 
 # 5. PUNTO DE ENTRADA
