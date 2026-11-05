@@ -1638,9 +1638,6 @@ def api_ordenes_pendientes_count():
     return jsonify({'pendientes': count})
 
 
-# En app.py, añade esta nueva ruta
-
-
 
 @app.route('/api/lote/<int:lote_id>/codigo/<path:codigo_articulo>/completar', methods=['POST'])
 @login_required
@@ -2659,9 +2656,10 @@ def subir_imagen_a_s3(file_obj, filename_prefix="guia"):
 def subir_foto_guia(orden_id):
     orden = db.get_or_404(Orden, orden_id)
     foto = request.files.get('foto_guia')
+    guia = request.form.get('guia_encomienda', '').strip() # Captura la guía opcional
     
     if not foto or foto.filename == '':
-        flash('Debe tomar o seleccionar una fotografía antes de enviar.', 'error')
+        flash('Debe tomar o seleccionar una fotografía antes de confirmar la entrega.', 'error')
         return redirect(url_for('detalle_ruta_conductor'))
 
     # Subimos la foto a Amazon S3
@@ -2671,6 +2669,8 @@ def subir_foto_guia(orden_id):
         orden.foto_guia_url = url_imagen
         orden.estado = 'ENTREGADO'
         orden.fecha_entrega_final = datetime.datetime.utcnow()
+        if guia:
+            orden.guia_encomienda = guia
         if not orden.nota_entrega:
             orden.nota_entrega = "Comprobante de foto cargado en S3."
         
@@ -2680,7 +2680,6 @@ def subir_foto_guia(orden_id):
         flash('Error al conectar o subir la imagen a Amazon S3. Verifique las credenciales.', 'error')
 
     return redirect(url_for('detalle_ruta_conductor'))
-
 # En app.py, reemplaza la función galeria_comprobantes por esta versión:
 
 @app.route('/comprobantes')

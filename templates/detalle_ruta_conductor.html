@@ -6,124 +6,173 @@
 <style>
     .card { background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem; }
     h2, h3 { border-bottom: 1px solid #eee; padding-bottom: 0.5rem; margin-bottom: 1rem; }
-    .orden-card { border: 1px solid #ddd; border-left: 5px solid #337ab7; border-radius: 5px; padding: 1rem; margin-bottom: 1rem; }
+    .orden-card { border: 1px solid #ddd; border-left: 5px solid #337ab7; border-radius: 5px; padding: 1rem; margin-bottom: 1rem; background: white; }
     .orden-header { display: flex; justify-content: space-between; align-items: flex-start; }
     .orden-header h4 { margin: 0; font-size: 1.1rem; }
-    .estado-ENTREGADO, .estado-ENTREGA_FALLIDA, .estado-INCIDENCIA_ENTREGA { background-color: #5cb85c; color: white; padding: 0.2em 0.5em; border-radius: 4px; font-size: 0.9em; }
+    .estado-ENTREGADO, .estado-ENTREGA_FALLIDA, .estado-INCIDENCIA_ENTREGA { background-color: #5cb85c; color: white; padding: 0.2em 0.5em; border-radius: 4px; font-size: 0.85em; }
     .estado-ENTREGA_FALLIDA, .estado-INCIDENCIA_ENTREGA { background-color: #d9534f; }
-    .actions-form, .guia-form { margin-top: 1rem; display: flex; gap: 10px; flex-wrap: wrap; align-items: center;}
-    .actions-form select, .actions-form button, .guia-form input, .guia-form button { padding: 8px 12px; border-radius: 5px; border: 1px solid #ccc; }
+    
     .form-grid { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
     @media (min-width: 992px) { .form-grid { grid-template-columns: 1fr 2fr; } }
     .form-group { margin-bottom: 1rem; }
     .form-group label { display: block; font-weight: bold; margin-bottom: 0.5rem; }
-    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #ccc; }
-    .submit-btn { background-color: #337ab7; color: white; border: none; cursor: pointer; padding: 10px 15px;}
+    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
+    .submit-btn { background-color: #337ab7; color: white; border: none; cursor: pointer; padding: 12px; width: 100%; font-size: 1.05rem; border-radius: 5px;}
     .finalizar-ruta-btn { background-color: #28a745; color: white; border: none; padding: 15px; font-size: 1.2rem; width: 100%; cursor: pointer; border-radius: 5px; }
     .finalizar-ruta-btn:disabled { background-color: #ccc; cursor: not-allowed; }
     .bulto-info { font-size: 0.9em; color: #555; background: #f9f9f9; padding: 0.5rem; border-radius: 4px; margin-top: 0.5rem; }
-    .cliente-group { border: 1px solid #ccc; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; background-color: #fdfdfd; }
-    .cliente-group h3 { margin-top: 0; color: #337ab7; }
+    
+    .cliente-group { border: 1px solid #ccc; border-radius: 8px; margin-bottom: 1rem; background-color: #fdfdfd; overflow: hidden; }
+    .cliente-header { background-color: #f1f3f5; padding: 0.8rem 1.2rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; }
+    .cliente-header h3 { margin: 0; font-size: 1rem; color: #337ab7; }
+    .cliente-content { padding: 1rem; display: none; }
+    .cliente-group.active .cliente-content { display: block; }
+    .cliente-group.active .cliente-header { border-bottom: 1px solid #ddd; }
+
+    .cliente-group.is-fully-completed .cliente-header { background-color: #dff0d8 !important; border-left: 5px solid #5cb85c; }
+    .cliente-group.is-fully-completed .cliente-header h3 { color: #3c763d !important; }
+    .hide-completed .cliente-group.is-fully-completed { display: none; }
+
     .view-options { margin-bottom: 1rem; background-color: #f0f0f0; padding: 0.8rem; border-radius: 5px; }
     .orden-card.is-completed { border-left-color: #5cb85c; }
     .orden-card.is-failed { border-left-color: #d9534f; }
-    .hide-completed .orden-card.is-completed,
-    .hide-completed .orden-card.is-failed { display: none; }
+    .hide-completed .orden-card.is-completed, .hide-completed .orden-card.is-failed { display: none; }
+    
     .resumen-financiero { text-align: center; }
-    .resumen-financiero .valor { font-size: 1.8rem; font-weight: bold; margin-bottom: 0.5rem; }
-    .resumen-financiero .etiqueta { font-size: 0.9rem; text-transform: uppercase; color: #777; }
-    .resumen-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; }
+    .resumen-financiero .valor { font-size: 1.6rem; font-weight: bold; margin-bottom: 0.3rem; }
+    .resumen-financiero .etiqueta { font-size: 0.85rem; text-transform: uppercase; color: #777; }
+    .resumen-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; }
     .balance-positivo { color: #28a745; }
     .balance-negativo { color: #d9534f; }
 
-    /* Estilos para el formulario de foto de cámara */
+    /* Estilos para el bloque de foto obligatorio */
     .foto-camera-box {
         margin-top: 1rem;
         padding: 0.8rem;
-        background-color: #f8f9fa;
-        border: 1px dashed #28a745;
+        background-color: #f8fdf8;
+        border: 1px solid #c3e6cb;
         border-radius: 6px;
     }
     .foto-camera-btn {
         background-color: #28a745;
         color: white;
         border: none;
-        padding: 10px;
+        padding: 12px;
         border-radius: 5px;
         font-weight: bold;
+        font-size: 1rem;
         width: 100%;
         cursor: pointer;
-        margin-top: 6px;
+        margin-top: 8px;
+    }
+    .foto-camera-btn:hover { background-color: #218838; }
+
+    /* Estilos para acordeón de entrega fallida */
+    .fallida-details {
+        margin-top: 0.8rem;
+        background: #fff5f5;
+        border: 1px solid #feb2b2;
+        border-radius: 5px;
+        padding: 8px 12px;
+    }
+    .fallida-summary {
+        font-weight: bold;
+        color: #c53030;
+        cursor: pointer;
+        font-size: 0.9em;
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<a href="{{ url_for('dashboard_conductor') }}" class="back-link">← Volver a mi Dashboard</a>
+<a href="{{ url_for('dashboard_conductor') }}" class="back-link" style="display: inline-block; margin-bottom: 1rem;">← Volver a mi Dashboard</a>
 
-<div class="card resumen-financiero">
-    <h2>Resumen Financiero de Liquidación</h2>
-    <div class="resumen-grid">
-        <div><div class="valor">¢{{ '%.2f'|format(ruta.gastos_asignados) }}</div><div class="etiqueta">Dinero Asignado (Efectivo)</div></div>
-        <div><div class="valor">¢{{ '%.2f'|format(desglose_pagos.EFECTIVO) }}</div><div class="etiqueta">Recibido en Efectivo</div></div>
-        <div><div class="valor">- ¢{{ '%.2f'|format(total_gastado) }}</div><div class="etiqueta">Gastos Reportados</div></div>
-        <div>
-            {% set efectivo_a_liquidar = ruta.gastos_asignados + desglose_pagos.EFECTIVO - total_gastado %}
-            <div class="valor {{ 'balance-positivo' if efectivo_a_liquidar >= 0 else 'balance-negativo' }}">¢{{ '%.2f'|format(efectivo_a_liquidar) }}</div>
-            <div class="etiqueta">Efectivo a Liquidar</div>
+<!-- ACORDEÓN 1: RESUMEN FINANCIERO -->
+<div class="collapsible-card">
+    <div class="collapsible-header">
+        <h2>Resumen Financiero de la Ruta</h2>
+        <span class="toggle-icon"></span>
+    </div>
+    <div class="collapsible-content">
+        <div class="resumen-financiero">
+            <div class="resumen-grid">
+                <div><div class="valor">¢{{ '%.2f'|format(ruta.gastos_asignados) }}</div><div class="etiqueta">Dinero Asignado (Efectivo)</div></div>
+                <div><div class="valor">¢{{ '%.2f'|format(desglose_pagos.EFECTIVO) }}</div><div class="etiqueta">Recibido en Efectivo</div></div>
+                <div><div class="valor">- ¢{{ '%.2f'|format(total_gastado) }}</div><div class="etiqueta">Gastos Reportados</div></div>
+                <div>
+                    {% set efectivo_a_liquidar = ruta.gastos_asignados + desglose_pagos.EFECTIVO - total_gastado %}
+                    <div class="valor {{ 'balance-positivo' if efectivo_a_liquidar >= 0 else 'balance-negativo' }}">¢{{ '%.2f'|format(efectivo_a_liquidar) }}</div>
+                    <div class="etiqueta">Efectivo a Liquidar</div>
+                </div>
+            </div>
+            <hr style="margin: 1.5rem 0;">
+            <table style="text-align: left; margin: 0 auto; font-size: 1.05rem; border: none; max-width: 400px; width: 100%;">
+                <tr style="border: none;"><td style="border: none;"><strong>Cheques a Entregar:</strong></td><td style="text-align: right; border: none;">¢{{ '%.2f'|format(desglose_pagos.CHEQUE) }}</td></tr>
+                <tr style="border: none;"><td style="border: none;"><strong>Sinpe Móvil Reportado:</strong></td><td style="text-align: right; border: none;">¢{{ '%.2f'|format(desglose_pagos.SINPE_MOVIL) }}</td></tr>
+                <tr style="border: none;"><td style="border: none;"><strong>Transferencia Reportada:</strong></td><td style="text-align: right; border: none;">¢{{ '%.2f'|format(desglose_pagos.TRANSFERENCIA_BANCARIA) }}</td></tr>
+            </table>
         </div>
     </div>
-    <hr>
-    <table style="text-align: left; margin: 0 auto; font-size: 1.1rem; border: none; max-width: 400px; width: 100%;">
-        <tr style="border: none;"><td style="border: none;"><strong>Cheques a Entregar:</strong></td><td style="text-align: right; border: none;">¢{{ '%.2f'|format(desglose_pagos.CHEQUE) }}</td></tr>
-        <tr style="border: none;"><td style="border: none;"><strong>Sinpe Móvil Reportado:</strong></td><td style="text-align: right; border: none;">¢{{ '%.2f'|format(desglose_pagos.SINPE_MOVIL) }}</td></tr>
-        <tr style="border: none;"><td style="border: none;"><strong>Transferencia Reportada:</strong></td><td style="text-align: right; border: none;">¢{{ '%.2f'|format(desglose_pagos.TRANSFERENCIA_BANCARIA) }}</td></tr>
-    </table>
 </div>
 
-<div class="form-grid">
-    <div>
-        <div class="card">
-            <h2>Registrar Gasto</h2>
-            <form action="{{ url_for('registrar_gasto_conductor') }}" method="POST">
-                <input type="hidden" name="ruta_id" value="{{ ruta.id }}">
-                <div class="form-group"><label for="monto_gastado">Monto (¢)</label><input type="number" name="monto_gastado" step="0.01" required></div>
-                <div class="form-group"><label for="descripcion">Descripción</label><input type="text" name="descripcion" placeholder="Ej: Combustible, Envío Encomienda" required></div>
-                <button type="submit" class="submit-btn">Registrar Gasto</button>
-            </form>
-        </div>
-        <div class="card">
-            <h2>Registrar Pago Recibido</h2>
-            <form action="{{ url_for('registrar_pago_conductor') }}" method="POST">
-                <input type="hidden" name="ruta_id" value="{{ ruta.id }}">
-                <div class="form-group">
-                    <label for="orden_id">Asociar a Orden (Opcional)</label>
-                    <select name="orden_id">
-                        <option value="">-- Cobro sin Orden Asociada --</option>
-                        {% set todas_las_ordenes = clientes_agrupados.values()|sum(start=[]) %}
-                        {% for orden in todas_las_ordenes|sort(attribute='numero_pedido') %}
-                            <option value="{{ orden.id }}">#{{ orden.numero_pedido }} - {{ orden.cliente_nombre }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="metodo_pago">Método de Pago</label>
-                    <select name="metodo_pago" required>
-                        <option value="EFECTIVO">Efectivo</option>
-                        <option value="CHEQUE">Cheque</option>
-                        <option value="SINPE_MOVIL">Sinpe Móvil</option>
-                        <option value="TRANSFERENCIA_BANCARIA">Transferencia Bancaria</option>
-                    </select>
-                </div>
-                <div class="form-group"><label for="monto_recibido">Monto (¢)</label><input type="number" name="monto_recibido" step="0.01" required></div>
-                <div class="form-group"><label for="nota">Nota / Referencia</label><textarea name="nota" rows="2" placeholder="Ej: # cheque, # teléfono"></textarea></div>
-                <button type="submit" class="submit-btn">Registrar Pago</button>
-            </form>
-        </div>
+<!-- ACORDEÓN 2: REGISTRAR GASTO -->
+<div class="collapsible-card">
+    <div class="collapsible-header">
+        <h2>Registrar Gasto</h2>
+        <span class="toggle-icon"></span>
     </div>
+    <div class="collapsible-content">
+        <form action="{{ url_for('registrar_gasto_conductor') }}" method="POST">
+            <input type="hidden" name="ruta_id" value="{{ ruta.id }}">
+            <div class="form-group"><label for="monto_gastado">Monto (¢)</label><input type="number" name="monto_gastado" step="0.01" required></div>
+            <div class="form-group"><label for="descripcion">Descripción</label><input type="text" name="descripcion" placeholder="Ej: Combustible, Envío Encomienda" required></div>
+            <button type="submit" class="submit-btn">Registrar Gasto</button>
+        </form>
+    </div>
+</div>
 
-    <div class="card">
+<!-- ACORDEÓN 3: REGISTRAR PAGO RECIBIDO -->
+<div class="collapsible-card">
+    <div class="collapsible-header">
+        <h2>Registrar Pago Recibido</h2>
+        <span class="toggle-icon"></span>
+    </div>
+    <div class="collapsible-content">
+        <form action="{{ url_for('registrar_pago_conductor') }}" method="POST">
+            <input type="hidden" name="ruta_id" value="{{ ruta.id }}">
+            <div class="form-group">
+                <label for="orden_id">Asociar a Orden (Opcional)</label>
+                <select name="orden_id">
+                    <option value="">-- Cobro sin Orden Asociada --</option>
+                    {% set todas_las_ordenes = clientes_agrupados.values()|sum(start=[]) %}
+                    {% for orden in todas_las_ordenes|sort(attribute='numero_pedido') %}
+                        <option value="{{ orden.id }}">#{{ orden.numero_pedido }} - {{ orden.cliente_nombre }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="metodo_pago">Método de Pago</label>
+                <select name="metodo_pago" required>
+                    <option value="EFECTIVO">Efectivo</option>
+                    <option value="CHEQUE">Cheque</option>
+                    <option value="SINPE_MOVIL">Sinpe Móvil</option>
+                    <option value="TRANSFERENCIA_BANCARIA">Transferencia Bancaria</option>
+                </select>
+            </div>
+            <div class="form-group"><label for="monto_recibido">Monto (¢)</label><input type="number" name="monto_recibido" step="0.01" required></div>
+            <div class="form-group"><label for="nota">Nota / Referencia</label><textarea name="nota" rows="2" placeholder="Ej: # cheque, # teléfono"></textarea></div>
+            <button type="submit" class="submit-btn">Registrar Pago</button>
+        </form>
+    </div>
+</div>
+
+<!-- ACORDEÓN 4: ENTREGAS -->
+<div class="collapsible-card active">
+    <div class="collapsible-header">
         <h2>Órdenes a Entregar ({{ total_ordenes }})</h2>
+        <span class="toggle-icon"></span>
+    </div>
+    <div class="collapsible-content" style="padding: 1rem 0.5rem;">
         <div class="view-options">
             <label><input type="checkbox" id="toggle-hide-completed"> Ocultar entregas completadas o fallidas</label>
         </div>
@@ -167,26 +216,25 @@
                         </div>
 
                         {% if orden.estado not in ['ENTREGADO', 'INCIDENCIA_ENTREGA'] %}
-                            <!-- Opción A: Confirmación estándar (Estado + Guía/Nota) -->
-                            <form action="{{ url_for('actualizar_estado_orden', orden_id=orden.id) }}" method="POST" class="actions-form">
-                                <div style="font-weight: bold; margin-top: 0.5rem;">Opciones de Confirmación:</div>
-                                <select name="estado">
-                                    <option value="ENTREGADO">Entregado con Éxito</option>
-                                    <option value="ENTREGA_FALLIDA">Entrega Fallida</option>
-                                </select>
-                                <input type="text" name="guia_encomienda" placeholder="Nº de Guía (Opcional)" value="{{ orden.guia_encomienda or '' }}">
-                                <textarea name="nota_fallida" class="nota-fallida-input" placeholder="Razón de la falla (obligatorio si falla)" style="display: none; width: 100%; margin-top: 5px;"></textarea>
-                                <button type="submit">Guardar y Confirmar</button>
-                            </form>
-
-                            <!-- === Opción B: NUEVO FORMULARIO PARA TOMAR Y SUBIR FOTO A AWS S3 === -->
+                            <!-- 1. ÚNICA VÍA DE ENTREGA EXITOSA: FORMULARIO OBLIGATORIO CON FOTO -->
                             <form action="{{ url_for('subir_foto_guia', orden_id=orden.id) }}" method="POST" enctype="multipart/form-data" class="foto-camera-box">
-                                <label style="font-weight: bold; font-size: 0.9em; display: block;">📷 Tomar Foto de Guía/Comprobante:</label>
+                                <label style="font-weight: bold; font-size: 0.9em; display: block; color: #28a745;">📷 Foto de Comprobante / Guía (Obligatoria):</label>
                                 <input type="file" name="foto_guia" accept="image/*" capture="environment" required style="font-size: 0.85em; margin-top: 5px;">
+                                <input type="text" name="guia_encomienda" placeholder="Nº de Guía de Encomienda (Opcional)" value="{{ orden.guia_encomienda or '' }}" style="margin-top: 6px; width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc; box-sizing: border-box;">
                                 <button type="submit" class="foto-camera-btn">Subir Foto a S3 y Confirmar Entrega</button>
                             </form>
+
+                            <!-- 2. FORMULARIO SECUNDARIO PARA REPORTAR FALLA DE ENTREGA -->
+                            <details class="fallida-details">
+                                <summary class="fallida-summary">⚠️ Reportar Entrega Fallida</summary>
+                                <form action="{{ url_for('actualizar_estado_orden', orden_id=orden.id) }}" method="POST" style="margin-top: 8px;">
+                                    <input type="hidden" name="estado" value="ENTREGA_FALLIDA">
+                                    <textarea name="nota_fallida" placeholder="Razón de la falla (obligatorio)" required style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc; box-sizing: border-box; margin-bottom: 6px;"></textarea>
+                                    <button type="submit" style="background-color: #d9534f; color: white; border: none; padding: 10px; border-radius: 4px; font-weight: bold; cursor: pointer; width: 100%;">Registrar Falla de Entrega</button>
+                                </form>
+                            </details>
                         {% else %}
-                            <!-- Vista de lectura cuando la orden ya fue entregada -->
+                            <!-- Vista de lectura si la orden ya fue procesada -->
                             {% if orden.guia_encomienda %}
                                 <div style="margin-top: 0.5rem; font-size: 0.95em;"><strong>Nº Guía:</strong> {{ orden.guia_encomienda }}</div>
                             {% endif %}
@@ -268,21 +316,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     initializeView();
-
-    const allStatusSelects = document.querySelectorAll('.actions-form select[name="estado"]');
-    allStatusSelects.forEach(selectElement => {
-        selectElement.addEventListener('change', function() {
-            const form = this.closest('form');
-            const notaTextarea = form.querySelector('.nota-fallida-input');
-            if (this.value === 'ENTREGA_FALLIDA') {
-                notaTextarea.style.display = 'block';
-                notaTextarea.required = true;
-            } else {
-                notaTextarea.style.display = 'none';
-                notaTextarea.required = false;
-            }
-        });
-    });
 });
 </script>
 {% endblock %}
