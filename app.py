@@ -2600,14 +2600,15 @@ def subir_imagen_a_s3(file_obj, filename_prefix="guia"):
 @conductor_required
 def subir_foto_guia(orden_id):
     orden = db.get_or_404(Orden, orden_id)
-    foto = request.files.get('foto_guia')
-    guia = request.form.get('guia_encomienda', '').strip() # Captura la guía opcional
+    
+    # Aceptamos la foto ya sea de la cámara o de la galería
+    foto = request.files.get('foto_guia_camara') or request.files.get('foto_guia_galeria') or request.files.get('foto_guia')
+    guia = request.form.get('guia_encomienda', '').strip()
     
     if not foto or foto.filename == '':
         flash('Debe tomar o seleccionar una fotografía antes de confirmar la entrega.', 'error')
         return redirect(url_for('detalle_ruta_conductor'))
 
-    # Subimos la foto a Amazon S3
     url_imagen = subir_imagen_a_s3(foto, filename_prefix=f"guia_pedido_{orden.numero_pedido}")
     
     if url_imagen:
@@ -2625,7 +2626,6 @@ def subir_foto_guia(orden_id):
         flash('Error al conectar o subir la imagen a Amazon S3. Verifique las credenciales.', 'error')
 
     return redirect(url_for('detalle_ruta_conductor'))
-# En app.py, reemplaza la función galeria_comprobantes por esta versión:
 
 @app.route('/comprobantes')
 @login_required

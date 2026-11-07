@@ -45,13 +45,33 @@
     .balance-positivo { color: #28a745; }
     .balance-negativo { color: #d9534f; }
 
-    /* Estilos para el bloque de foto con vista previa */
+    /* Estilos para el bloque de foto con botones duales */
     .foto-camera-box {
         margin-top: 1rem;
         padding: 0.8rem;
         background-color: #f8fdf8;
         border: 1px solid #c3e6cb;
         border-radius: 6px;
+    }
+    .btn-opcion-foto {
+        display: block;
+        padding: 10px;
+        border-radius: 5px;
+        text-align: center;
+        cursor: pointer;
+        font-weight: bold;
+        font-size: 0.9em;
+        margin-bottom: 6px;
+    }
+    .btn-camara-vivo {
+        background-color: #e8f5e9;
+        border: 1px solid #28a745;
+        color: #1e7e34;
+    }
+    .btn-galeria-archivo {
+        background-color: #f8f9fa;
+        border: 1px solid #ced4da;
+        color: #495057;
     }
     .foto-camera-btn {
         background-color: #28a745;
@@ -62,10 +82,9 @@
         font-weight: bold;
         font-size: 1rem;
         width: 100%;
-        cursor: pointer;
         margin-top: 8px;
+        transition: opacity 0.2s;
     }
-    .foto-camera-btn:hover { background-color: #218838; }
 
     .preview-container {
         display: none;
@@ -83,7 +102,6 @@
         object-fit: contain;
     }
 
-    /* Estilos para acordeón de entrega fallida */
     .fallida-details {
         margin-top: 0.8rem;
         background: #fff5f5;
@@ -232,24 +250,33 @@
                         </div>
 
                         {% if orden.estado not in ['ENTREGADO', 'INCIDENCIA_ENTREGA'] %}
-                            <!-- 1. FORMULARIO DE ENTREGA CON FOTO Y PREVISUALIZACIÓN -->
+                            <!-- 1. FORMULARIO CON DOS BOTONES PARA LA FOTO (CÁMARA O GALERÍA) -->
                             <form action="{{ url_for('subir_foto_guia', orden_id=orden.id) }}" method="POST" enctype="multipart/form-data" class="foto-camera-box">
-                                <label style="font-weight: bold; font-size: 0.9em; display: block; color: #28a745;">📷 Foto de Comprobante / Guía (Obligatoria):</label>
+                                <label style="font-weight: bold; font-size: 0.9em; display: block; color: #28a745; margin-bottom: 6px;">📷 Adjuntar Comprobante (Obligatorio):</label>
                                 
-                                <!-- Permitir cámara o archivo de galería -->
-                                <input type="file" name="foto_guia" accept="image/*" capture="environment" required style="font-size: 0.85em; margin-top: 5px;" class="input-foto-file" onchange="mostrarVistaPrevia(this)">
-                                
+                                <!-- Botón 1: Abrir Cámara en Vivo -->
+                                <label class="btn-opcion-foto btn-camara-vivo">
+                                    📸 Tomar Foto en Vivo (Cámara)
+                                    <input type="file" name="foto_guia_camara" accept="image/*" capture="environment" style="display: none;" onchange="mostrarVistaPrevia(this)">
+                                </label>
+
+                                <!-- Botón 2: Abrir Galería -->
+                                <label class="btn-opcion-foto btn-galeria-archivo">
+                                    🖼️ Elegir de la Galería
+                                    <input type="file" name="foto_guia_galeria" accept="image/*" style="display: none;" onchange="mostrarVistaPrevia(this)">
+                                </label>
+
                                 <!-- Contenedor de la vista previa -->
                                 <div class="preview-container">
                                     <img class="img-preview" src="" alt="Vista previa">
                                     <div style="font-size: 0.8em; color: #28a745; margin-top: 4px; font-weight: bold;">
-                                        ✓ Vista previa. Si se ve oscura o borrosa, seleccione otra foto.
+                                        ✓ Foto seleccionada. Si no es clara, vuelva a elegir.
                                     </div>
                                 </div>
 
                                 <input type="text" name="guia_encomienda" placeholder="Nº de Guía de Encomienda (Opcional)" value="{{ orden.guia_encomienda or '' }}" style="margin-top: 6px; width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc; box-sizing: border-box;">
                                 
-                                <button type="submit" class="foto-camera-btn">Subir Foto a S3 y Confirmar Entrega</button>
+                                <button type="submit" class="foto-camera-btn" disabled style="opacity: 0.5; cursor: not-allowed;">Subir Foto a S3 y Confirmar Entrega</button>
                             </form>
 
                             <!-- 2. FORMULARIO SECUNDARIO PARA REPORTAR FALLA DE ENTREGA -->
@@ -346,21 +373,36 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeView();
 });
 
-// --- FUNCIÓN PARA MOSTRAR LA VISTA PREVIA INSTANTÁNEA ---
+// --- FUNCIÓN PARA MANEJAR LA SELECCIÓN Y VISTA PREVIA DUAL ---
 function mostrarVistaPrevia(fileInput) {
     const formBox = fileInput.closest('.foto-camera-box');
     const previewContainer = formBox.querySelector('.preview-container');
     const imgPreview = formBox.querySelector('.img-preview');
+    const submitBtn = formBox.querySelector('.foto-camera-btn');
+
+    // Limpiamos el otro campo si se eligió foto en este
+    const inputs = formBox.querySelectorAll('input[type="file"]');
+    inputs.forEach(input => {
+        if (input !== fileInput) {
+            input.value = '';
+        }
+    });
 
     if (fileInput.files && fileInput.files[0]) {
         const reader = new FileReader();
         reader.onload = function(e) {
             imgPreview.src = e.target.result;
             previewContainer.style.display = 'block';
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = '1';
+            submitBtn.style.cursor = 'pointer';
         };
         reader.readAsDataURL(fileInput.files[0]);
     } else {
         previewContainer.style.display = 'none';
+        submitBtn.disabled = true;
+        submitBtn.style.opacity = '0.5';
+        submitBtn.style.cursor = 'not-allowed';
     }
 }
 </script>
