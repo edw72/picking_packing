@@ -45,7 +45,7 @@
     .balance-positivo { color: #28a745; }
     .balance-negativo { color: #d9534f; }
 
-    /* Estilos para el bloque de foto obligatorio */
+    /* Estilos para el bloque de foto con vista previa */
     .foto-camera-box {
         margin-top: 1rem;
         padding: 0.8rem;
@@ -66,6 +66,22 @@
         margin-top: 8px;
     }
     .foto-camera-btn:hover { background-color: #218838; }
+
+    .preview-container {
+        display: none;
+        margin-top: 10px;
+        text-align: center;
+        background: #ffffff;
+        padding: 8px;
+        border-radius: 6px;
+        border: 1px solid #28a745;
+    }
+    .img-preview {
+        max-width: 100%;
+        max-height: 220px;
+        border-radius: 4px;
+        object-fit: contain;
+    }
 
     /* Estilos para acordeón de entrega fallida */
     .fallida-details {
@@ -216,11 +232,23 @@
                         </div>
 
                         {% if orden.estado not in ['ENTREGADO', 'INCIDENCIA_ENTREGA'] %}
-                            <!-- 1. ÚNICA VÍA DE ENTREGA EXITOSA: FORMULARIO OBLIGATORIO CON FOTO -->
+                            <!-- 1. FORMULARIO DE ENTREGA CON FOTO Y PREVISUALIZACIÓN -->
                             <form action="{{ url_for('subir_foto_guia', orden_id=orden.id) }}" method="POST" enctype="multipart/form-data" class="foto-camera-box">
                                 <label style="font-weight: bold; font-size: 0.9em; display: block; color: #28a745;">📷 Foto de Comprobante / Guía (Obligatoria):</label>
-                                <input type="file" name="foto_guia" accept="image/*" capture="environment" required style="font-size: 0.85em; margin-top: 5px;">
+                                
+                                <!-- Permitir cámara o archivo de galería -->
+                                <input type="file" name="foto_guia" accept="image/*" required style="font-size: 0.85em; margin-top: 5px;" class="input-foto-file" onchange="mostrarVistaPrevia(this)">
+                                
+                                <!-- Contenedor de la vista previa -->
+                                <div class="preview-container">
+                                    <img class="img-preview" src="" alt="Vista previa">
+                                    <div style="font-size: 0.8em; color: #28a745; margin-top: 4px; font-weight: bold;">
+                                        ✓ Vista previa. Si se ve oscura o borrosa, seleccione otra foto.
+                                    </div>
+                                </div>
+
                                 <input type="text" name="guia_encomienda" placeholder="Nº de Guía de Encomienda (Opcional)" value="{{ orden.guia_encomienda or '' }}" style="margin-top: 6px; width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc; box-sizing: border-box;">
+                                
                                 <button type="submit" class="foto-camera-btn">Subir Foto a S3 y Confirmar Entrega</button>
                             </form>
 
@@ -317,5 +345,23 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     initializeView();
 });
+
+// --- FUNCIÓN PARA MOSTRAR LA VISTA PREVIA INSTANTÁNEA ---
+function mostrarVistaPrevia(fileInput) {
+    const formBox = fileInput.closest('.foto-camera-box');
+    const previewContainer = formBox.querySelector('.preview-container');
+    const imgPreview = formBox.querySelector('.img-preview');
+
+    if (fileInput.files && fileInput.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            imgPreview.src = e.target.result;
+            previewContainer.style.display = 'block';
+        };
+        reader.readAsDataURL(fileInput.files[0]);
+    } else {
+        previewContainer.style.display = 'none';
+    }
+}
 </script>
 {% endblock %}

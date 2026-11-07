@@ -504,8 +504,16 @@ def crear_lote():
 @app.route('/lote/<int:lote_id>')
 @login_required
 def detalle_lote(lote_id):
-    lote = LotePicking.query.get_or_404(lote_id)
-    lista_consolidada = defaultdict(lambda: {'descripcion': '', 'solicitado': 0, 'recogido': 0, 'items_individuales': []})
+    lote = db.get_or_404(LotePicking, lote_id)
+    
+    # Añadimos 'ubicacion' al diccionario consolidado
+    lista_consolidada = defaultdict(lambda: {
+        'descripcion': '', 
+        'solicitado': 0, 
+        'recogido': 0, 
+        'ubicacion': 'Sin Ubicación', 
+        'items_individuales': []
+    })
     
     for orden in lote.ordenes:
         for item in orden.items:
@@ -513,12 +521,21 @@ def detalle_lote(lote_id):
             consolidado['descripcion'] = item.descripcion_articulo
             consolidado['solicitado'] += item.cantidad_solicitada
             consolidado['recogido'] += item.cantidad_recogida
+            if item.ubicacion:
+                consolidado['ubicacion'] = item.ubicacion
             consolidado['items_individuales'].append(item)
             
-    lista_final = sorted(lista_consolidada.items(), key=lambda x: x[0])
+    # === ORDENAMIENTO INTELIGENTE DE RUTA DE CAMINATA ===
+    # Muestra primero los productos que TIENEN ubicación (ordenados alfabéticamente por pasillo/estante),
+    # y deja al final los productos "Sin Ubicación".
+    lista_final = sorted(
+        lista_consolidada.items(), 
+        key=lambda x: (0 if x[1]['ubicacion'] != 'Sin Ubicación' else 1, x[1]['ubicacion'], x[0])
+    )
+    
     picking_completo = all(item['recogido'] >= item['solicitado'] for _, item in lista_consolidada.items()) if lista_consolidada else False
 
-    return render_template('detalle_lote.html', lote=lote, lista_consolidada=lista_final, picking_completo=picking_completo )
+    return render_template('detalle_lote.html', lote=lote, lista_consolidada=lista_final, picking_completo=picking_completo)
 
 @app.route('/lote/<int:lote_id>/escanear', methods=['POST'])
 @login_required
@@ -807,104 +824,54 @@ CODIGOS_DE_SERVICIO = {'0356', '0357', '0358', '0359', 'PROMO', 'EMP01'}
 
 @app.route('/api/ordenes/crear-desde-factura', methods=['POST'])
 def crear_orden_desde_factura():
-    # 1. Verificación de seguridad
     api_key = request.headers.get('X-API-KEY')
     if not api_key or api_key != app.config['API_SECRET_KEY']:
         return jsonify({'error': 'Acceso no autorizado.'}), 403
-
-    # 2. Obtención y validación de datos
     data = request.get_json()
-    if not data:
-        return jsonify({'error': 'No se recibieron datos JSON.'}), 400
-        
-    print("--- Datos recibidos en la API para crear orden ---")
-    print(json.dumps(data, indent=2))
-
-    if not all(k in data for k in ['pedido', 'cliente', 'items']) or not data['items']:
-        return jsonify({'error': 'Faltan datos esenciales en el JSON (pedido, cliente o items).'}), 400
-
-    # 3. Evitar duplicados
-    if Orden.query.filter_by(numero_pedido=data['pedido']).first():
-        print(f"Orden duplicada detectada y omitida: #{data['pedido']}")
+    if not data or not all(k in data for k in ['pedido', 'cliente', 'items']) or not data['items']:
+        return jsonify({'error': 'Faltan datos esenciales en el JSON.'}), 400
+    if db.session.execute(db.select(Orden).filter_by(numero_pedido=data['pedido'])).scalar_one_or_none():
         return jsonify({'mensaje': f'La orden #{data["pedido"]} ya existe y fue omitida.'}), 200
-
     try:
-        # 4. Crear la orden principal
-        # === MODIFICACIÓN: Extraer la nota de bodega opcional del JSON ===
         nota_bodega = data.get('nota_bodega', '').strip()
-
         nueva_orden = Orden(
-            numero_pedido=data['pedido'],
-            cliente_nombre=data['cliente'].get('nombre', 'N/A'),
+            numero_pedido=data['pedido'], 
+            cliente_nombre=data['cliente'].get('nombre', 'N/A'), 
             cliente_direccion=data['cliente'].get('direccion', 'N/A'),
-            # === MODIFICACIÓN: .upper() para estandarizar las notas automáticas ===
-                nota_bodega=nota_bodega.upper() if nota_bodega else None
+            nota_bodega=nota_bodega.upper() if nota_bodega else None
         )
         db.session.add(nueva_orden)
         db.session.flush()
-
-        print(f"Orden #{nueva_orden.numero_pedido} creada con ID {nueva_orden.id}. Añadiendo {len(data['items'])} ítems...")
-
-        # 5. Bucle para crear los ítems (CON LA LÓGICA CORREGIDA)
-        # for i, item_data in enumerate(data['items']):
-        #     # --- CORRECCIÓN: Definimos las variables al principio ---
-        #     codigo_item = item_data.get('codigo', '').strip()
-        #     cantidad_solicitada = int(item_data.get('cantidad', 0))
-            
-        #     # Ahora la validación se hace sobre las variables ya creadas
-        #     if not codigo_item or cantidad_solicitada <= 0:
-        #         print(f"  -> Omitiendo ítem #{i+1} por falta de código o cantidad válida.")
-        #         continue 
-
-        #     nuevo_item = ItemOrden(
-        #         orden_id=nueva_orden.id,
-        #         codigo_articulo=codigo_item,
-        #         descripcion_articulo=item_data.get('articulo', 'N/A'),
-        #         cantidad_solicitada=cantidad_solicitada
-        #     )
-
-        #     if codigo_item in CODIGOS_DE_SERVICIO:
-        #         nuevo_item.cantidad_recogida = cantidad_solicitada
-        #         print(f"  -> Añadido ÍTEM DE SERVICIO: {codigo_item} (auto-completado)")
-        #     else:
-        #         nuevo_item.cantidad_recogida = 0
-        #         print(f"  -> Añadido a la sesión: {codigo_item} (Cantidad: {cantidad_solicitada})")
-            
-        #     db.session.add(nuevo_item)
 
         for item_data in data['items']:
             codigo_item = item_data.get('codigo', '').strip()
             cantidad_solicitada = int(item_data.get('cantidad', 0))
             if not codigo_item or cantidad_solicitada <= 0: continue
             
+            # === NUEVO: Leer la ubicación del ítem (si viene en el JSON) ===
+            ubicacion_item = item_data.get('ubicacion', '').strip()
+
             nuevo_item = ItemOrden(
                 orden_id=nueva_orden.id, 
                 codigo_articulo=codigo_item, 
                 descripcion_articulo=item_data.get('articulo', 'N/A'), 
-                cantidad_solicitada=cantidad_solicitada
+                cantidad_solicitada=cantidad_solicitada,
+                ubicacion=ubicacion_item if ubicacion_item else None # <-- AÑADIDO
             )
             
-            # === MODIFICACIÓN CLAVE: Inicializar picking y packing para servicios ===
             if codigo_item in CODIGOS_DE_SERVICIO:
                 nuevo_item.cantidad_recogida = cantidad_solicitada
-                nuevo_item.cantidad_empacada = cantidad_solicitada # <-- AÑADIDO
-                print(f"  -> Añadido ÍTEM DE SERVICIO: {codigo_item} (auto-completado en picking y packing)")
+                nuevo_item.cantidad_empacada = cantidad_solicitada
             else:
                 nuevo_item.cantidad_recogida = 0
-                nuevo_item.cantidad_empacada = 0 # <-- AÑADIDO (Por defecto es 0)
-                print(f"  -> Añadido ÍTEM FÍSICO: {codigo_item} (Cantidad: {cantidad_solicitada})")
-            
+                nuevo_item.cantidad_empacada = 0
+                
             db.session.add(nuevo_item)
 
-        # 6. Commit final
         db.session.commit()
-        print("--- Commit final exitoso. Todos los ítems guardados. ---")
         return jsonify({'mensaje': 'Orden creada con éxito', 'id_orden': nueva_orden.id}), 201
-
     except Exception as e:
         db.session.rollback()
-        import traceback
-        traceback.print_exc()
         return jsonify({'error': f'Ocurrió un error en el servidor: {str(e)}'}), 500
     
 @app.route('/orden/<int:orden_id>/retener', methods=['POST'])
@@ -922,29 +889,6 @@ def retener_orden(orden_id):
 
     return redirect(url_for('dashboard'))
 
-
-# @app.route('/packing/<int:orden_id>', methods=['GET']) # Ya no necesitamos POST aquí
-# @login_required
-# def detalle_packing(orden_id):
-#     orden = Orden.query.get_or_404(orden_id)
-#     if orden.estado != 'EMPACADO':
-#         flash('Esta orden no está lista para packing.', 'error')
-#         return redirect(url_for('dashboard_packing'))
-
-#     # Ya no necesitamos manejar la sesión. La vista leerá el estado
-#     # directamente desde la base de datos.
-#     # Al entrar a la pantalla de packing, podríamos querer resetear el conteo,
-#     # por si alguien la dejó a medias y quiere empezar de nuevo.
-#     if request.args.get('reset') == 'true':
-#         for item in orden.items:
-#             # Solo reseteamos los items físicos, no los de servicio
-#             if item.codigo_articulo not in CODIGOS_DE_SERVICIO:
-#                 item.cantidad_empacada = 0
-#         db.session.commit()
-#         flash('Se ha reiniciado el conteo de packing para esta orden.', 'info')
-#         return redirect(url_for('detalle_packing', orden_id=orden.id))
-
-#     return render_template('detalle_packing.html', orden=orden)
 
 @app.route('/packing/<int:orden_id>', methods=['GET'])
 @login_required

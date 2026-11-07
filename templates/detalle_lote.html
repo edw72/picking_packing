@@ -92,6 +92,7 @@
     <table>
         <thead>
             <tr>
+                <th>Ubicación</th>
                 <th>Código Artículo</th>
                 <th>Descripción</th>
                 <th>Progreso</th>
@@ -101,6 +102,11 @@
         <tbody>
             {% for codigo, item in lista_consolidada %}
             <tr id="item-row-{{ codigo }}" class="item-row" data-codigo="{{ codigo }}">
+                <td>
+                    <span style="font-weight: bold; background-color: #e9ecef; color: #333; padding: 4px 8px; border-radius: 4px; font-family: monospace; border: 1px solid #ced4da;">
+                        {{ item.ubicacion }}
+                    </span>
+                </td>
                 <td><strong>{{ codigo }}</strong></td>
                 <td>{{ item.descripcion }}</td>
                 <td>
