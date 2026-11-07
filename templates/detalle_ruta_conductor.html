@@ -391,26 +391,30 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // === INICIO: COMPRESIÓN AUTOMÁTICA DE IMÁGENES ANTES DE ENVIAR ===
+    // === INICIO: COMPRESIÓN CORREGIDA (BUSCA EN CÁMARA Y GALERÍA) ===
     document.querySelectorAll('.foto-camera-box').forEach(formElement => {
         formElement.addEventListener('submit', function(e) {
-            e.preventDefault(); // Detenemos el envío sin comprimir
+            e.preventDefault();
             
-            const fileInput = formElement.querySelector('input[type="file"]');
+            // Buscar el archivo en CUALQUIERA de los campos de foto del formulario
+            let file = null;
+            const fileInputs = formElement.querySelectorAll('input[type="file"]');
+            fileInputs.forEach(input => {
+                if (input.files && input.files[0]) {
+                    file = input.files[0];
+                }
+            });
+
             const submitBtn = formElement.querySelector('.foto-camera-btn');
             
-            if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+            if (!file) {
                 alert("Debe seleccionar o tomar una fotografía antes de enviar.");
                 return;
             }
 
-            const file = fileInput.files[0];
-            
-            // Cambiamos el texto del botón para dar retroalimentación
             submitBtn.disabled = true;
             submitBtn.textContent = "⏳ Comprimiendo y Subiendo...";
 
-            // Ejecutamos la compresión
             comprimirYSubirImagen(file, formElement, submitBtn);
         });
     });
@@ -423,6 +427,7 @@ function mostrarVistaPrevia(fileInput) {
     const imgPreview = formBox.querySelector('.img-preview');
     const submitBtn = formBox.querySelector('.foto-camera-btn');
 
+    // Limpiar el otro input del mismo formulario
     const inputs = formBox.querySelectorAll('input[type="file"]');
     inputs.forEach(input => {
         if (input !== fileInput) {
@@ -450,8 +455,8 @@ function mostrarVistaPrevia(fileInput) {
 
 // Función principal de compresión en el navegador
 function comprimirYSubirImagen(file, formElement, submitBtn) {
-    const MAX_ANCHO_ALTO = 1280; // Reducir dimensiones máximas a 1280px
-    const CALIDAD_JPEG = 0.75;    // 75% de calidad (excelente balance lectura/peso)
+    const MAX_ANCHO_ALTO = 1280;
+    const CALIDAD_JPEG = 0.75; // 75% de calidad
 
     const reader = new FileReader();
     reader.onload = function(e) {
@@ -460,7 +465,6 @@ function comprimirYSubirImagen(file, formElement, submitBtn) {
             let width = img.width;
             let height = img.height;
 
-            // Escalar manteniendo la proporción
             if (width > height) {
                 if (width > MAX_ANCHO_ALTO) {
                     height = Math.round((height * MAX_ANCHO_ALTO) / width);
@@ -473,7 +477,6 @@ function comprimirYSubirImagen(file, formElement, submitBtn) {
                 }
             }
 
-            // Dibujar en un canvas invisible
             const canvas = document.createElement('canvas');
             canvas.width = width;
             canvas.height = height;
@@ -481,7 +484,6 @@ function comprimirYSubirImagen(file, formElement, submitBtn) {
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
 
-            // Exportar a un Blob de imagen JPEG liviana
             canvas.toBlob(function(blob) {
                 const formData = new FormData();
                 formData.append('foto_guia', blob, 'comprobante_comprimido.jpg');
@@ -491,7 +493,6 @@ function comprimirYSubirImagen(file, formElement, submitBtn) {
                     formData.append('guia_encomienda', guiaInput.value);
                 }
 
-                // Enviar la imagen liviana por Fetch
                 fetch(formElement.action, {
                     method: 'POST',
                     body: formData
