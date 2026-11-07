@@ -237,7 +237,7 @@
                                 <label style="font-weight: bold; font-size: 0.9em; display: block; color: #28a745;">📷 Foto de Comprobante / Guía (Obligatoria):</label>
                                 
                                 <!-- Permitir cámara o archivo de galería -->
-                                <input type="file" name="foto_guia" accept="image/*" required style="font-size: 0.85em; margin-top: 5px;" class="input-foto-file" onchange="mostrarVistaPrevia(this)">
+                                <input type="file" name="foto_guia" accept="image/*" capture="environment" required style="font-size: 0.85em; margin-top: 5px;" class="input-foto-file" onchange="mostrarVistaPrevia(this)">
                                 
                                 <!-- Contenedor de la vista previa -->
                                 <div class="preview-container">
